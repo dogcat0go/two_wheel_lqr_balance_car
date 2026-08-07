@@ -1,5 +1,55 @@
+# PlatformIO
 .pio
+.pioenvs
+.piolibdeps
+.clang_complete
+.gcc-flags.json
+compile_commands.json
+.cache/
+.specstory/
+.specstory/statistics.json
+.cursor/
+# VS Code / Cursor（PlatformIO 自动生成的配置）
 .vscode/.browse.c_cpp.db*
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+.vscode/
+*.code-workspace
+
+# CLion / JetBrains
+.idea/
+cmake-build-*/
+*.iml
+
+# Python tools/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.env
+
+# 调试 / 运行产物
+logs/
+*.log
+*.csv
+core
+core.*
+
+# 编译中间产物（若在源码旁生成）
+*.o
+*.obj
+*.a
+*.elf
+*.bin
+*.map
+*.hex
+
+# OS
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo

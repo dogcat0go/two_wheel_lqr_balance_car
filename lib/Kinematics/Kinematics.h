@@ -12,8 +12,10 @@
 #include <Arduino.h>
 
 typedef struct {
-    float per_pulse_mm; // mm/pulse
-    float motor_speed; // mm/s
+    float per_pulse_mm; // mm/pulse, 取正值
+    float dir; // +1/-1, 把编码器与PWM统一到"正 = 车体前进"
+    float motor_speed; // mm/s, 原始值, 用于里程计积分
+    float filtered_speed; // mm/s, 低通后, 用于闭环反馈
     int64_t last_encoder_ticks; // ticks
 } motor_param_t;
 
@@ -26,18 +28,21 @@ typedef struct {
 } odometry_t;
 
 static constexpr float kPi = 3.1415926f;
+static constexpr float kSpeedFilterAlpha = 0.3f; // 速度低通系数(0~1, 越小越平滑)
 
 class Kinematics {
 public:
     Kinematics() = default;
     ~Kinematics() = default;
 
-    // 设置电机参数
-    void set_motor_param(int motor_id, float per_pulse_mm, float motor_speed, int64_t last_encoder_ticks);
+    // 设置电机参数：dir 是唯一的方向配置处
+    void set_motor_param(int motor_id, float per_pulse_mm, float dir, int64_t last_encoder_ticks);
     void get_motor_param(int motor_id, float *per_pulse_mm, float *motor_speed, int64_t *last_encoder_ticks);
     void set_motor_distance(float wheel_distance);
     void update_motor_speed(uint64_t now, int64_t left_ticks, int64_t right_ticks);
+    // 车体坐标系下的轮速(mm/s)，闭环反馈唯一来源
     float get_motor_speed(int motor_id);
+    float get_motor_dir(int motor_id) { return motor_param_[motor_id].dir; }
 
     // 正逆运动学
     void kinematic_inverse(float linear_speed, float angular_speed, float *left_speed, float *right_speed);

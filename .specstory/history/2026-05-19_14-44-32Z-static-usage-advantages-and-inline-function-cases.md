@@ -633,3 +633,627 @@ _**Agent (default)**_
 2. 将头文件中的 `PI` 改名为 `kPi`，避免与 `Arduino.h` 里的 `#define PI` 宏冲突（验证构建时暴露的问题）。
 
 **说明：** `cos`、`sin` 属于 C 标准库 `<cmath>`，不会随 `Arduino.h` 自动带入 `.cpp` 的翻译单元。未包含该头文件时，编译器找不到 `cos` 标识符。嵌入式上也可改用 `cosf` / `sinf`（同样来自 `<cmath>`），对 `float` 更贴切，但当前写法已可正常编译。
+
+---
+
+_**User**_
+
+@\home\lcoit\.cursor\projects\home-lcoit-ros2-projects-fishbot-res-fishbot-esp32-mt-example\terminals\5.txt:53-55 这个问题怎么解决
+
+---
+
+_**Agent (default)**_
+
+<think><details><summary>Thought Process</summary>
+The user encounters a compilation error where `microros_error_loop` is undeclared in main.cpp.</details></think>
+
+_**Agent (default)**_
+
+查看 `main.cpp` 与项目的 micro-ROS 配置。
+
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2">
+<details><summary>Tool use: **read_file_v2** • Read file: /home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example/src/main.cpp</summary>
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2"><details>
+<summary>Tool use: **read_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="unknown" data-tool-name="ripgrep_raw_search">
+<details>
+<summary>Tool use: **ripgrep_raw_search**</summary>
+
+
+Parameters:
+
+```json
+{
+  "caseInsensitive": false,
+  "path": "/home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example",
+  "pattern": "microros_error_loop|RCCHECK|RCLCPP"
+}
+```
+Additional data:
+
+```json
+{
+  "isPruned": true,
+  "outputMode": "content",
+  "path": "/home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example",
+  "pattern": "microros_error_loop|RCCHECK|RCLCPP",
+  "topFiles": [
+    {
+      "matchCount": 13,
+      "uri": "./src/main.cpp"
+    },
+    {
+      "matchCount": 4,
+      "uri": "./.specstory/history/2026-05-20_16-38-26Z-main.cpp-文件检查与-cmd_vel-订阅.md"
+    },
+    {
+      "matchCount": 8,
+      "uri": "./.specstory/history/2026-05-20_12-17-04Z-micro-ros-build-failure-due-to-missing-rmw-package.md"
+    }
+  ],
+  "totalFiles": 3,
+  "totalMatches": 25
+}
+```
+Status: **completed**
+
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="unknown" data-tool-name="ripgrep_raw_search"><details>
+<summary>Tool use: **ripgrep_raw_search**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="search" data-tool-name="glob_file_search">
+<details>
+<summary>Tool use: **glob_file_search** • Searched codebase "" • **1** result in **1** directory</summary>
+
+Directory: **/home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example** (1 file)
+
+| File |
+|------|
+| `platformio.ini` |
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="search" data-tool-name="glob_file_search"><details>
+<summary>Tool use: **glob_file_search**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<think><details><summary>Thought Process</summary>
+The `RCCHECK` macro references `microros_error_loop()` before its definition, causing a compilation error due to forward reference.</details></think>
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2">
+<details><summary>Tool use: **read_file_v2** • Read file: /home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example/src/main.cpp</summary>
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2"><details>
+<summary>Tool use: **read_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+Glob pattern "**/*" matches every file and is not allowed. Use a more specific glob or no glob.
+
+<tool-use data-tool-type="unknown" data-tool-name="ripgrep_raw_search"><details>
+<summary>Tool use: **ripgrep_raw_search**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<think><details><summary>Thought Process</summary>
+The problem is a classic C++ issue where the `RCCHECK` macro expands to call `microros_error_loop()`, but this function is defined at line 102.</details></think>
+
+_**Agent (default)**_
+
+这是函数声明顺序问题：`RCCHECK` 在 `microros_error_loop` 定义之前被展开。添加前向声明并验证编译。
+
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="write" data-tool-name="edit_file_v2">
+
+<details><summary>Tool use: **edit_file_v2** • Edit file: /home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example/src/main.cpp</summary>
+
+</details>
+
+</tool-use>
+
+<tool-use data-tool-type="write" data-tool-name="edit_file_v2"><details>
+<summary>Tool use: **edit_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2">
+<details><summary>Tool use: **read_file_v2** • Read file: /home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example/platformio.ini</summary>
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2"><details>
+<summary>Tool use: **read_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="shell" data-tool-name="run_terminal_command_v2">
+<details><summary>Tool use: **run_terminal_command_v2** • Run command: cd /home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example && ~/.platformio/penv/bin/pio run 2>&1</summary>
+
+```bash
+cd /home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example && ~/.platformio/penv/bin/pio run 2>&1
+```
+
+```
+Processing fishbot (platform: espressif32; board: esp32dev; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via &#96;-v, --verbose&#96; option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32dev.html
+PLATFORM: Espressif 32 (7.0.0) &gt; Espressif ESP32 Dev Module
+HARDWARE: ESP32 240MHz, 320KB RAM, 4MB Flash
+DEBUG: Current (cmsis-dap) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 3.20017.241212+sha.dcc1105b 
+ - tool-esptoolpy @ 2.41100.0 (4.11.0) 
+ - toolchain-xtensa-esp32 @ 8.4.0+2021r2-patch5
+LDF: Library Dependency Finder -&gt; https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Installing importlib-resources with pip at PlatformIO environment
+/home/lcoit/.platformio/penv/bin/python -m pip install importlib-resources
+Requirement already satisfied: importlib-resources in /home/lcoit/.platformio/penv/lib/python3.10/site-packages (7.1.0)
+Installing pyyaml with pip at PlatformIO environment
+/home/lcoit/.platformio/penv/bin/python -m pip install pyyaml
+Requirement already satisfied: pyyaml in /home/lcoit/.platformio/penv/lib/python3.10/site-packages (6.0.3)
+Installing markupsafe==2.0.1 with pip at PlatformIO environment
+/home/lcoit/.platformio/penv/bin/python -m pip install markupsafe==2.0.1
+Requirement already satisfied: markupsafe==2.0.1 in /home/lcoit/.platformio/penv/lib/python3.10/site-packages (2.0.1)
+Installing empy==3.3.4 with pip at PlatformIO environment
+/home/lcoit/.platformio/penv/bin/python -m pip install empy==3.3.4
+Requirement already satisfied: empy==3.3.4 in /home/lcoit/.platformio/penv/lib/python3.10/site-packages (3.3.4)
+Configuring esp32dev with transport wifi
+micro-ROS already built
+Found 38 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- Esp32McpwmMotor @ 0.1.0+sha.145c06d
+|-- Esp32PcntEncoder @ 0.1.0+sha.7cce8d0
+|-- micro_ros_platformio @ 0.0.1+sha.cfee17f
+|-- Kinematics
+|-- PidController
+|-- WiFi @ 2.0.0
+Building in release mode
+Compiling .pio/build/fishbot/src/main.cpp.o
+src/main.cpp: In function 'void microros_task(void*)':
+src/main.cpp:117:70: warning: ISO C++ forbids converting a string constant to 'char*' [-Wwrite-strings]
+     set_microros_wifi_transports("CHY", "13705558902", agent_ip, 8888);
+                                                                      ^
+src/main.cpp:117:70: warning: ISO C++ forbids converting a string constant to 'char*' [-Wwrite-strings]
+Linking .pio/build/fishbot/firmware.elf
+Retrieving maximum program size .pio/build/fishbot/firmware.elf
+Checking size .pio/build/fishbot/firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home &gt; Project Inspect"
+RAM:   [==        ]  20.8% (used 68228 bytes from 327680 bytes)
+Flash: [======    ]  63.3% (used 829793 bytes from 1310720 bytes)
+Building .pio/build/fishbot/firmware.bin
+esptool.py v4.11.0
+Creating esp32 image...
+Merged 27 ELF sections
+Successfully created esp32 image.
+========================= [SUCCESS] Took 8.53 seconds =========================
+
+```
+</details>
+</tool-use>
+
+<tool-use data-tool-type="shell" data-tool-name="run_terminal_command_v2"><details>
+<summary>Tool use: **run_terminal_command_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+**原因：** `RCCHECK` 宏在第 25 行就调用了 `microros_error_loop()`，而函数定义在第 102 行。`odom_timer_callback`（约第 64 行）里展开宏时，编译器还没见过该函数，因此报 “not declared in this scope”。
+
+**解决办法：** 在 `#define RCCHECK` 之前加前向声明：
+
+```cpp
+void microros_error_loop();
+```
+
+已写入 `main.cpp`，`pio run` 编译通过。
+
+**说明：** 这不是 micro-ROS 库缺函数，而是 C/C++ 必须先声明后使用。也可把 `microros_error_loop` 整段移到 `RCCHECK` 和 `odom_timer_callback` 之前，效果相同。
+
+---
+
+_**User**_
+
+ros2 常用的串口监视器的功能包有哪些
+
+---
+
+_**Agent (default)**_
+
+<think><details><summary>Thought Process</summary>
+ROS2 does not have a direct equivalent to PlatformIO's serial monitor, but users can employ tools like `ros2 run` with custom nodes or external utilities such as `screen` or `minicom` to view serial output from embedded devices connected via UART/USB. Some ROS2 packages like `serial` or `rqt_serial` may also assist in serial communication monitoring.
+```
+
+ROS2 lacks a direct serial monitor equivalent to PlatformIO's tool, but users can leverage `micro_ros_agent` to bridge serial/USB connections, `serial` packages from ros-drivers for serial communication, and `transport_drivers` for newer serial drivers. Standalone tools like `screen` or `minicom` are also commonly used for serial monitoring alongside ROS2.
+
+Linux users can utilize terminal tools like `minicom`, `picocom`, and `screen`, or GUI options such as `cutecom`, alongside ROS2-specific packages including `serial`, `serial_driver`, `micro_ros_agent`, and `rosserial` for serial communication. Additionally, `rqt_console` and `rqt_plot` are useful for monitoring logs and plotting topic data within the ROS2 environment.</details></think>
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="unknown" data-tool-name="web_search">
+<details>
+<summary>Tool use: **web_search**</summary>
+
+
+Parameters:
+
+```json
+{
+  "searchTerm": "ROS2 serial port monitor package micro-ROS agent 2024"
+}
+```
+Result:
+
+```json
+{
+  "isFinal": true,
+  "references": [
+    {
+      "chunk": "Links:\n1. [micro-ROS/micro-ROS-Agent](https://github.com/microROS/micro-ROS-Agent)\n2. [micro-ROS-Agent Serial Only Works for 115200 BAUD · Issue #215 · micro-ROS/micro-ROS-Agent](https://github.com/micro-ROS/micro-ROS-Agent/issues/215)\n3. [RozaGkliva/ros2_serial](https://github.com/RozaGkliva/ros2_serial)\n4. [How to use micro_ros on OpenCR - ROS Answers archive](https://answers.ros.org/question/383530)\n5. [Question about how to debug communication data between micro-ROS-agent and micro-ROS-client · Issue #265 · micro-ROS/micro-ROS-Agent](https://github.com/micro-ROS/micro-ROS-Agent/issues/265)\n\n# ROS2 Serial Port Monitor \u0026 micro-ROS Agent (2024)\n\n## micro-ROS Agent Overview\n\nThe micro-ROS Agent is a ROS 2 package that wraps the Micro XRCE-DDS Agent, acting as a server between the DDS network and Micro-ROS nodes running on microcontrollers.[1] It receives and sends messages from MCU-based Micro-ROS nodes while exposing them to the ROS 2 network.[1]\n\n## Serial Port Communication\n\nThe Agent supports serial port transport for communication with Micro-ROS clients, alongside UDP and TCP over IPv4/IPv6.[1] Serial communication can be initiated with:\n&#96;&#96;&#96;\nros2 run micro_ros_agent micro_ros_agent serial --dev [YOUR_BOARD_PORT]\n&#96;&#96;&#96;[4]\n\n### Known Issues (2024)\n\nA notable 2024 issue involved serial communication only working at 115200 baud rates.[2] When users attempted to connect at different baud rates (e.g., 230400), the connection would fail silently with no error messages despite visible serial activity.[2]\n\n## Debugging Serial Communication\n\nFor monitoring serial port data between the Agent and client, users can:[5]\n\n- Increase verbosity with the &#96;-v&#96; option (e.g., &#96;-v6&#96; for maximum debug output)[4]\n- Use round-trip time (RTT) measurement by having the MCU echo messages back to measure latency[5]\n- Implement sequence counters in messages to detect packet loss[5]\n\n## Alternative: ros2_serial Package\n\nFor general ROS 2 serial interfacing, the &#96;ros2_serial&#96; package (2024) provides serial port monitoring with configurable parameters for baud rate, device ports, message headers/footers, and polling rates.[3]",
+      "title": "Web search results"
+    }
+  ],
+  "rejected": false
+}
+```
+User decision: **accepted**
+
+Status: **completed**
+
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="unknown" data-tool-name="web_search"><details>
+<summary>Tool use: **web_search**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<think><details><summary>Thought Process</summary>
+ROS2ros2-serialpyserialrclpyros2-serialROS2pyserialPythonrclpyROS2Python</details></think>
+
+_**Agent (default)**_
+
+**先说清楚：** ROS2 里**没有**一个和 PlatformIO / Arduino IDE 那种「纯串口监视器」完全等价、又特别主流的官方包。看 MCU 的 `Serial.printf` 调试输出，一般用系统工具；和 ROS2 通信、桥接串口，才用下面这些功能包。
+
+---
+
+## 一、看 MCU 调试输出（真·串口监视）
+
+这些**不是 ROS2 包**，但在做 micro-ROS / 嵌入式时最常用：
+
+| 工具 | 说明 |
+|------|------|
+| **minicom** / **picocom** / **screen** | Linux 下经典终端串口监视，`picocom /dev/ttyUSB0 -b 115200` |
+| **PlatformIO Monitor** | `pio device monitor` |
+| **cutecom**、**Serial Studio** | 带 GUI 的串口监视 |
+| **Arduino IDE 串口监视器** | ESP32 开发时常用 |
+
+用途：只看固件日志，**不参与** ROS2 DDS。
+
+---
+
+## 二、ROS2 里和「串口」相关的常用功能包
+
+### 1. **micro_ros_agent**（micro-ROS 必用）
+
+- 作用：串口 / UDP / TCP 与 MCU 上的 micro-ROS 客户端通信，把话题/服务接到 ROS2 网络。
+- 典型用法：
+  ```bash
+  ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
+  ```
+- 说明：这是**通信代理**，不是监视器；加 `-v6` 可看较详细的 XRCE 调试日志。
+
+### 2. **serial**（`serial` / `wjwwood/serial`）
+
+- 作用：C++ 串口读写库，很多驱动、节点会依赖它。
+- 用途：自己写节点读串口传感器、协议解析等。
+
+### 3. **transport_drivers**（含 **serial_driver**）
+
+- 作用：ROS2 官方驱动栈里的串口驱动框架（较新、偏专业驱动开发）。
+- 用途：规范化的串口 I/O + 与 `io_context` 配合。
+
+### 4. 社区 / 示例类
+
+| 包 | 说明 |
+|----|------|
+| **ros2_serial** 等社区包 | 把串口数据发布成 ROS2 话题，带波特率、帧格式等参数 |
+| **micro_ros_setup** | 环境搭建、agent 配置，不是监视器本身 |
+
+---
+
+## 三、ROS2 里「监视数据」的常用包（走话题，不走裸串口）
+
+和 micro-ROS 联调时，往往用这些看**已经进 ROS2 的数据**：
+
+| 包 / 命令 | 作用 |
+|-----------|------|
+| **rqt**（**rqt_console**、**rqt_plot**、**rqt_graph**） | 日志、曲线、节点图 |
+| **ros2 topic echo / hz / info** | 终端里看话题内容、频率 |
+| **ros2 bag record** | 录包回放 |
+| **Foxglove Studio** | 可视化（需 bridge，如 `foxglove_bridge`） |
+
+---
+
+## 四、结合你当前项目（ESP32 + WiFi micro-ROS）
+
+- **WiFi 传输**：主机上跑 `micro_ros_agent` 用 **udp**（你 `platformio.ini` 里 `board_microros_transport = wifi`），一般**不需要**串口 agent。
+- **串口监视**：用 `pio device monitor` 或 `picocom` 看 ESP32 的 `Serial.printf` 即可。
+- **看 ROS 侧**：`ros2 topic echo /odom`、`ros2 topic echo /cmd_vel` 等。
+
+---
+
+## 五、简要对照
+
+| 需求 | 推荐 |
+|------|------|
+| 看固件 printf 日志 | minicom / picocom / PlatformIO Monitor |
+| MCU ↔ ROS2（串口 micro-ROS） | **micro_ros_agent** |
+| 自己写串口节点 | **serial** 或 **serial_driver** |
+| 看已发布的 ROS 话题 | **rqt**、**ros2 topic**、**Foxglove** |
+
+如果你说的是「在 ROS2 里订阅某个自定义串口话题」还是「micro-ROS 串口连 agent 连不上」，可以说一下具体场景，我可以按你的 `main.cpp` 配置写一套对应命令。
+
+---
+
+_**User**_
+
+pio device monitor
+ 但是我好像没法配置串口波特率
+
+---
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2">
+<details><summary>Tool use: **read_file_v2** • Read file: /home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example/platformio.ini</summary>
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="read" data-tool-name="read_file_v2"><details>
+<summary>Tool use: **read_file_v2**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="unknown" data-tool-name="ripgrep_raw_search">
+<details>
+<summary>Tool use: **ripgrep_raw_search**</summary>
+
+
+Parameters:
+
+```json
+{
+  "caseInsensitive": false,
+  "path": "/home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example",
+  "pattern": "monitor"
+}
+```
+Additional data:
+
+```json
+{
+  "isPruned": true,
+  "outputMode": "content",
+  "path": "/home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example",
+  "pattern": "monitor",
+  "topFiles": [
+    {
+      "matchCount": 1,
+      "uri": "./.specstory/history/2026-05-21_06-31-20Z-platformio-project-initialization-issue.md"
+    },
+    {
+      "matchCount": 1,
+      "uri": "./.specstory/history/2026-05-20_16-38-26Z-main.cpp-文件检查与-cmd_vel-订阅.md"
+    },
+    {
+      "matchCount": 3,
+      "uri": "./.specstory/history/2026-05-20_12-17-04Z-micro-ros-build-failure-due-to-missing-rmw-package.md"
+    },
+    {
+      "matchCount": 1,
+      "uri": "./.specstory/history/2026-05-19_14-44-32Z-static-usage-advantages-and-inline-function-cases.md"
+    }
+  ],
+  "totalFiles": 4,
+  "totalMatches": 6
+}
+```
+Status: **completed**
+
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="unknown" data-tool-name="ripgrep_raw_search"><details>
+<summary>Tool use: **ripgrep_raw_search**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<think><details><summary>Thought Process</summary>
+The user's platformio.ini file is missing the monitor_speed configuration.</details></think>
+
+_**Agent (default)**_
+
+<tool-use data-tool-type="unknown" data-tool-name="ripgrep_raw_search">
+<details>
+<summary>Tool use: **ripgrep_raw_search**</summary>
+
+
+Parameters:
+
+```json
+{
+  "caseInsensitive": false,
+  "path": "/home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example/src/main.cpp",
+  "pattern": "Serial\\.begin"
+}
+```
+Additional data:
+
+```json
+{
+  "isPruned": true,
+  "outputMode": "content",
+  "path": "/home/lcoit/ros2_projects/fishbot_res/fishbot_esp32_mt_example/src/main.cpp",
+  "pattern": "Serial\\.begin",
+  "topFiles": [
+    {
+      "matchCount": 1,
+      "uri": "src/main.cpp"
+    }
+  ],
+  "totalFiles": 1,
+  "totalMatches": 1
+}
+```
+Status: **completed**
+
+
+</details>
+</tool-use>
+
+<tool-use data-tool-type="unknown" data-tool-name="ripgrep_raw_search"><details>
+<summary>Tool use: **ripgrep_raw_search**</summary>
+
+</details></tool-use>
+
+_**Agent (default)**_
+
+<think><details><summary>Thought Process</summary>
+Their firmware uses 115200 baud, while PlatformIO's default monitor speed is typically 9600 baud, which can result in garbled output if not adjusted.</details></think>
+
+_**Agent (default)**_
+
+可以配置，只是默认不会自动跟固件里的 `Serial.begin` 对齐。你工程里固件是 **115200**，而 `platformio.ini` 里没写监视器波特率时，PlatformIO 默认往往是 **9600**，所以会乱码或像“没法用”。
+
+## 方法一：写在 `platformio.ini`（推荐）
+
+在 `[env:fishbot]` 里加上：
+
+```ini
+monitor_speed = 115200
+monitor_port = /dev/ttyUSB0    ; 可选，固定串口设备
+monitor_filters = default        ; 可选
+```
+
+然后：
+
+```bash
+pio device monitor
+```
+
+会按 115200 打开。
+
+## 方法二：命令行临时指定
+
+```bash
+pio device monitor -b 115200
+```
+
+或：
+
+```bash
+pio device monitor --baud 115200
+```
+
+指定端口：
+
+```bash
+pio device monitor -p /dev/ttyUSB0 -b 115200
+```
+
+查看本机串口：
+
+```bash
+pio device list
+```
+
+## 方法三：VS Code / Cursor 里点 “Monitor”
+
+扩展会读 `platformio.ini` 里的 `monitor_speed`。没写就用默认 9600，需要在 `platformio.ini` 配置，不能只靠界面猜。
+
+---
+
+## 和固件保持一致
+
+你 `main.cpp` 里是：
+
+```cpp
+Serial.begin(115200);
+```
+
+监视器也必须 **115200**，两边一致才能正常显示。
+
+---
+
+## 常用相关项
+
+| 配置项 | 含义 |
+|--------|------|
+| `monitor_speed` | 波特率 |
+| `monitor_port` | 设备路径，如 `/dev/ttyUSB0` |
+| `monitor_dtr` / `monitor_rts` | ESP32 有时要设 `monitor_dtr = 0`、`monitor_rts = 0` 才能稳定连接 |
+| `upload_port` | 烧录端口，可与 `monitor_port` 相同 |
+
+ESP32 若 Monitor 连上没输出，可试：
+
+```ini
+monitor_speed = 115200
+monitor_dtr = 0
+monitor_rts = 0
+```
+
+---
+
+需要的话我可以直接帮你在 `platformio.ini` 里加上 `monitor_speed = 115200`（以及可选的 `monitor_dtr`/`monitor_rts`）。

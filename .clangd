@@ -1,0 +1,18 @@
+CompileFlags:
+  # 使用 PlatformIO 生成的 compile_commands.json（需先 pio run -t compiledb）
+  CompilationDatabase: .
+  # 去掉 clang 不认识的 ESP32/GCC 专用参数
+  Remove:
+    - -mlongcalls*
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+    - -mtext-section-literals
+    - -mfix-esp32-psram-cache*
+  Add:
+    - -Wno-unknown-warning-option
+    - -Wno-unused-command-line-argument
+    - -Wno-ignored-attributes
+
+Diagnostics:
+  Suppress:
+    - drv_unknown_argument

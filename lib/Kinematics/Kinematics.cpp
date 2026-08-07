@@ -9,10 +9,12 @@
 #include "Kinematics.h"
 #include <cmath>
 
-void Kinematics::set_motor_param(int motor_id, float per_pulse_mm, float motor_speed, int64_t last_encoder_ticks)
+void Kinematics::set_motor_param(int motor_id, float per_pulse_mm, float dir, int64_t last_encoder_ticks)
 {
     motor_param_[motor_id].per_pulse_mm = per_pulse_mm;
-    motor_param_[motor_id].motor_speed = motor_speed;
+    motor_param_[motor_id].dir = dir;
+    motor_param_[motor_id].motor_speed = 0.0f;
+    motor_param_[motor_id].filtered_speed = 0.0f;
     motor_param_[motor_id].last_encoder_ticks = last_encoder_ticks;
 }
 
@@ -45,15 +47,19 @@ void Kinematics::update_motor_speed(uint64_t now, int64_t left_ticks, int64_t ri
     motor_param_[0].last_encoder_ticks = left_ticks;
     motor_param_[1].last_encoder_ticks = right_ticks;
     last_update_time_ = now;
-    motor_param_[0].motor_speed = (dl * motor_param_[0].per_pulse_mm) / dt_s;
-    motor_param_[1].motor_speed = (dr * motor_param_[1].per_pulse_mm) / dt_s;
+    motor_param_[0].motor_speed = (dl * motor_param_[0].per_pulse_mm * motor_param_[0].dir) / dt_s;
+    motor_param_[1].motor_speed = (dr * motor_param_[1].per_pulse_mm * motor_param_[1].dir) / dt_s;
+    for (int i = 0; i < 2; i++) {
+        motor_param_[i].filtered_speed = kSpeedFilterAlpha * motor_param_[i].motor_speed +
+                                         (1 - kSpeedFilterAlpha) * motor_param_[i].filtered_speed;
+    }
 
     update_odometry(dt_ms);
 }
 
 float Kinematics::get_motor_speed(int motor_id)
 {
-    return motor_param_[motor_id].motor_speed;
+    return motor_param_[motor_id].filtered_speed;
 }
 
 /**
@@ -86,8 +92,8 @@ void Kinematics::update_odometry(uint32_t dt_ms)
     odometry_.theta += odometry_.angular_speed * dt_s;
     TransAngleInPi(odometry_.theta, &odometry_.theta);
 
-    // 转换位置
-    float delta_distance = odometry_.linear_speed  * dt_ms;
+    // 转换位置（距离 = 线速度 * 时间，必须用秒）
+    float delta_distance = odometry_.linear_speed * dt_s;
     odometry_.x += delta_distance * std::cos(odometry_.theta);
     odometry_.y += delta_distance * std::sin(odometry_.theta);
 }

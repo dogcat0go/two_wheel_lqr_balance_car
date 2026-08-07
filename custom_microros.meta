@@ -1,0 +1,15 @@
+{
+  "names": {
+    "microxrcedds_client": {
+      "cmake-args": [
+        "-DUCLIENT_CUSTOM_TRANSPORT_MTU=1024"
+      ]
+    },
+    "rmw_microxrcedds": {
+      "cmake-args": [
+        "-DRMW_UXRCE_STREAM_HISTORY_INPUT=4",
+        "-DRMW_UXRCE_STREAM_HISTORY_OUTPUT=4"
+      ]
+    }
+  }
+}
