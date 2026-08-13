@@ -41,12 +41,15 @@ uint8_t Safety::evaluate(float pitch_rad, bool imu_ok, uint32_t now_ms,
         fall_since_ms_ = 0;
     }
 
-    if (cmd_age_ms > (int32_t)limits_.cmd_timeout_ms) {
+    // stamp==0：尚未收到过指令（上电竞态），不算断链；有过指令后再按年龄判超时
+    if (cmd_stamp_ms != 0 &&
+        cmd_age_ms > (int32_t)limits_.cmd_timeout_ms) {
         fault_ |= kCmdTimeout;
     }
 
+    // 只锁存硬故障；CMD_TIMEOUT 为软故障，指令恢复后自动清除
     if (latch_enabled_) {
-        latched_ |= fault_;
+        latched_ |= static_cast<uint8_t>(fault_ & kHardFaultMask);
         fault_ |= latched_;
     }
     return fault_;
@@ -54,7 +57,8 @@ uint8_t Safety::evaluate(float pitch_rad, bool imu_ok, uint32_t now_ms,
 
 float Safety::limit(int wheel, float desired, float dt_s)
 {
-    if (fault_ != kOk) {
+    // 仅摔倒 / IMU 丢失才切输出；CMD_TIMEOUT 仍放行，由上层把速度目标清零保平衡
+    if ((fault_ & kHardFaultMask) != 0) {
         last_out_[wheel] = 0.0f;
         return 0.0f;
     }

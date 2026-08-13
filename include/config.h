@@ -2,7 +2,7 @@
  * @Author: LCOIT dogcat.let@gmail.com
  * @Date: 2026-08-03 13:59:58
  * @LastEditors: LCOIT dogcat.let@gmail.com
- * @LastEditTime: 2026-08-07 18:57:21
+ * @LastEditTime: 2026-08-10 13:54:29
  * @FilePath: /fishbot_esp32_mt_example/include/config.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -64,6 +64,15 @@ constexpr float kComHeightM = 0.012f; // 质心到轮轴，估算值；抬高电
 constexpr int   kSpeedDiffWindow = 4;    // 差分窗口(采样数)，窗口时长 = N*控制周期
 constexpr float kSpeedLpfAlpha   = 0.3f; // 速度低通系数 (0~1]，1 = 不滤波
 
+// ---- 电流传感（ACS712-05B ±5A；下标同轮序 kLeft/kRight；须用 ADC1 脚）----
+// 灵敏度厂家标称 185 mV/A；零点上电各校一次。极性反了翻对应 kCurrentSign[i]。
+// currentRaw = 本拍；current = 一阶低通（压 PWM 纹波/噪声）。
+constexpr int   kCurrentAdcGpio[2]     = {34, 35}; // L=GPIO34, R=GPIO35
+constexpr float kCurrentSensVPerA[2]   = {0.185f, 0.185f}; // V/A
+constexpr float kCurrentSign[2]        = {-1.0f, 1.0f};    // +1 = 该轮前进为正电流
+constexpr float kCurrentLpfAlpha[2]    = {0.15f, 0.15f};   // 低通；越小越稳、越滞后
+constexpr int   kCurrentZeroSamples[2] = {100, 100};       // 上电零点平均次数
+
 // ---- 执行器硬限幅 ----
 constexpr float kMaxDuty = 100.0f; // PWM 占空比上限 (%)，硬件边界层
 
@@ -84,14 +93,14 @@ constexpr uint32_t kTelemetryMs    = 200; // 遥测打印周期
 
 // ---- 安全层（阶段2，必须先于控制算法测通）----
 // 当前执行器接口是占空比(%)，阶段5 接 τ→PWM 后改成 N·m
-constexpr float    kMaxEffort       = 60.0f;   // 输出饱和 (%)，平衡调参期先压低防炸机
+constexpr float    kMaxEffort       = 100.0f;   // 输出饱和 (%)，平衡调参期先压低防炸机
 // 斜率限幅 (%/s)。倒塌特征时间只有 33ms，而 3000%/s 走完 -60→+60 要 40ms，
 // 限幅本身就成了主导滞后，故放到 12000（每个 5ms 拍可走满 60%），实际只剩饱和起作用
 constexpr float    kMaxEffortSlew   = 12000.0f;
 constexpr float    kFallAngleRad    = 0.52f;   // ~30°
 constexpr uint32_t kFallHoldMs      = 20;      // 连续超角 20ms（约 4 拍@200Hz）才确认摔倒
 constexpr uint32_t kImuTimeoutMs    = 100;     // IMU 数据过期
-constexpr uint32_t kCmdTimeoutMs    = 500;     // 通信断链自动停车
+constexpr uint32_t kCmdTimeoutMs    = 500;     // 通信断链：清速度目标，不切电机（摔倒/IMU 才硬停）
 
 // ---- 阶段3 平衡状态反馈（k 即 ∂u/∂x，已含符号；见 docs/stage34_gain_init_theory.md）----
 // 设计点：ω_n = 2λ ≈ 57rad/s, ζ = 0.8 → T_d = k_θ̇/k_θ = 0.022s。
@@ -136,5 +145,8 @@ constexpr const char* kAgentIp      = "192.168.5.62";
 constexpr uint16_t    kAgentPort    = 8888;
 constexpr const char* kRosNodeName  = "goudan_bot_balance";
 constexpr const char* kCmdVelTopic  = "/cmd_vel";
+// 串口文本协议 WiFi 透传（与 USB 串口同一套 m/p/d/...；电脑端 tools/fishbot_wifi_bridge.py）
+constexpr const char* kSerialCmdTopic = "/fishbot/cmd"; // std_msgs/String 下行
+constexpr const char* kSerialLogTopic = "/fishbot/log"; // std_msgs/String 上行遥测/应答
 
 } // namespace cfg

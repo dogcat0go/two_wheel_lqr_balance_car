@@ -25,13 +25,16 @@ struct ControlSnapshot {
     float    wheel_pos_m[2];
     float    wheel_vel_mps[2];
     int32_t  wheel_ticks[2]; // 原始编码器计数，标 kMPerTick 用
-    float    effort[2];      // 安全层之后真正下发的量（当前是占空比 %）
-    float    terms[5];       // BalanceController::Term 各分量，判振源用
+    float    effort[2];         // 安全层之后真正下发的量（当前是占空比 %）
+    float    current_a[2];      // 左右电流低通后 (A)，正 = 该轮前进
+    float    current_raw_a[2];  // 本拍原始 (A)
+    float    terms[5];          // BalanceController::Term 各分量，判振源用
     uint32_t ctrl_hz;        // 实测控制频率，看有没有掉拍
     uint32_t overrun_count;  // 单周期超时次数
     uint8_t  fault;          // Safety::Fault 位掩码
     uint8_t  mode;           // 0 = 开环, 1 = 平衡
     bool     imu_ok;
+    bool     armed;          // 平衡出力使能：上电/摔倒后需 r
 };
 
 // 通信环 → 控制环（指令下行）
