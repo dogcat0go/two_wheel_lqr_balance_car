@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LQR 预习问答归档：按知识结构整理</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f2; --paper: #fffcf7; --ink: #1a1f24; --muted: #5a6570;
+    --line: #d8d2c6; --accent: #0b5f6b; --accent-soft: #e6f2f3;
+    --warn: #8a3b12; --warn-bg: #f8eee6; --code-bg: #eef1f3;
+    --shadow: 0 1px 0 rgba(26,31,36,.04), 0 12px 40px rgba(26,31,36,.06);
+    --radius: 10px; --max: 52rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #e8f4f5 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #f3efe6 0%, transparent 50%),
+      var(--bg);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", Georgia, serif;
+    line-height: 1.75; font-size: 17px;
+  }
+  .wrap {
+    display: grid; grid-template-columns: 250px minmax(0, var(--max));
+    gap: 2rem; max-width: 1100px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+  }
+  nav.toc {
+    position: sticky; top: 1rem; align-self: start;
+    max-height: calc(100vh - 2rem); overflow: auto; padding: 1rem;
+    background: rgba(255,252,247,.85); border: 1px solid var(--line);
+    border-radius: var(--radius); backdrop-filter: blur(8px);
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    font-size: 12.5px; line-height: 1.45;
+  }
+  nav.toc h2 {
+    margin: 0 0 .75rem; font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+  }
+  nav.toc a {
+    display: block; color: var(--ink); text-decoration: none;
+    padding: .2rem 0; border-left: 2px solid transparent; padding-left: .5rem;
+  }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .l2 { padding-left: 1rem; color: var(--muted); font-size: 12px; }
+  main {
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow); padding: 2.25rem 2rem 3rem;
+  }
+  header.doc-head {
+    border-bottom: 1px solid var(--line); padding-bottom: 1.5rem; margin-bottom: 2rem;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif; font-size: 12px;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 .5rem;
+  }
+  h1 { font-size: clamp(1.45rem, 3vw, 1.95rem); line-height: 1.25; margin: 0 0 .75rem; }
+  .lead { color: var(--muted); margin: 0; }
+  h2 {
+    margin: 2.5rem 0 1rem; padding-top: .5rem; border-top: 1px solid var(--line);
+    font-size: 1.35rem; color: var(--accent);
+  }
+  h2:first-of-type { border-top: none; }
+  h3 { margin: 1.5rem 0 .5rem; font-size: 1.08rem; }
+  h4 { margin: 1.1rem 0 .35rem; font-size: 1rem; }
+  p { margin: .65rem 0; }
+  ul, ol { padding-left: 1.3rem; }
+  li { margin: .25rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .9em;
+    background: var(--code-bg); padding: .1em .35em; border-radius: 4px;
+  }
+  table {
+    width: 100%; border-collapse: collapse; font-size: .92rem;
+    margin: 1rem 0; font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  th, td {
+    border: 1px solid var(--line); padding: .5rem .6rem;
+    text-align: left; vertical-align: top;
+  }
+  th { background: var(--accent-soft); }
+  .eq-box {
+    background: #f3f7f8; border: 1px solid #c9dde0; border-radius: 8px;
+    padding: .15rem 1rem; margin: .85rem 0; overflow-x: auto;
+  }
+  .qa {
+    border: 1px solid var(--line); border-radius: 10px; padding: .9rem 1rem;
+    margin: .85rem 0 1.1rem; background: #fff;
+  }
+  .qa .q {
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    font-weight: 650; margin: 0 0 .45rem; color: var(--ink);
+  }
+  .qa .tag {
+    display: inline-block; font-size: 11px; font-family: "IBM Plex Sans", sans-serif;
+    color: var(--accent); background: var(--accent-soft);
+    padding: .1rem .4rem; border-radius: 4px; margin-right: .35rem;
+  }
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: .8rem 1rem; margin: 1rem 0; border-radius: 0 8px 8px 0;
+  }
+  .callout .t {
+    font-family: "IBM Plex Sans", sans-serif; font-weight: 650;
+    font-size: .92rem; margin: 0 0 .35rem;
+  }
+  footer.note {
+    margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: .9rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <h2>目录</h2>
+  <a href="#map">0. 知识地图与阅读顺序</a>
+  <a href="#lang">1. 符号与 ODE</a>
+  <a href="#state-ab">2. 状态方程与 A/B</a>
+  <a href="#y-ctrl">3. 输出与可控性</a>
+  <a href="#phys">4. 物理与惯量</a>
+  <a href="#pend">5. 摆与二阶系统</a>
+  <a href="#lag">6. 拉格朗日</a>
+  <a href="#mq">7. 质量矩阵与线性化</a>
+  <a href="#lqr">8. LQR 与 \(u^\star\)</a>
+  <a href="#career">9. 面试 / 落地</a>
+  <a href="#index">10. 提问对照表</a>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="eyebrow">FishBot · 预习问答归档</p>
+  <h1>把本轮提问嵌回知识结构</h1>
+  <p class="lead">
+    去重后的问答按章节归档；每条标明应回看的主文档位置。
+    主文档：
+    <a href="./control_systems_mental_model.html">控制思路</a> ·
+    <a href="./lagrange_dynamics_why.html">拉格朗日</a> ·
+    <a href="./lqr_balance_theory.html">LQR 理论</a>
+    · 本轮（HJB/泰勒/矩阵求导/DARE 填 \(K\)）已并入 §8–9 与理论篇 §7。
+  </p>
+</header>
+
+<section id="map">
+<h2>0. 知识地图与阅读顺序</h2>
+<div class="callout">
+  <p class="t">推荐阅读顺序（补全后）</p>
+  <ol style="margin:0;padding-left:1.2rem">
+    <li><a href="./control_systems_mental_model.html">控制思路</a></li>
+    <li><a href="./lagrange_dynamics_why.html">拉格朗日</a></li>
+    <li><a href="./lqr_balance_theory.html">LQR 理论</a></li>
+    <li><code>balance_gain_theory.md</code> + <code>stage4_vel_pitch_feedforward.md</code></li>
+    <li><code>stage5.md</code> → 参数表 → 力矩 SOP → 仿真算 \(K\)</li>
+  </ol>
+</div>
+<div class="qa">
+  <p class="q"><span class="tag">元问题</span>原先四步阅读顺序还缺什么？</p>
+  <p>缺「手调↔LQR 桥」「kff/软停为何保留」「力矩执行器」「物理参数表」。坡度/KF 属阶段 6，先别塞进预习链。</p>
+</div>
+</section>
+
+<section id="lang">
+<h2>1. 符号与 ODE <small style="font-weight:400;color:var(--muted)">→ 控制思路 §2–3 · 理论篇 §5</small></h2>
+
+<div class="qa">
+  <p class="q">ODE 全称 / 中文？</p>
+  <p><strong>Ordinary Differential Equation</strong>，常微分方程：未知函数对<strong>一个</strong>自变量（通常是时间）求导。对比 PDE（偏微分方程）。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(\dot{\mathbf{x}}\)（你打成 \(x'\)）是导数吗？</p>
+  <p>是。\(\dot x=\mathrm{d}x/\mathrm{d}t\)。控制/力学常用点号；\(x'\) 有时也表示导数，易混。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(\dot x=f(x,u)\) 是一阶微分方程吗？</p>
+  <p>是<strong>一阶</strong>（向量）常微分方程：最高阶导数是一阶。物理常先给二阶式，再拆成一阶向量形式——物理不变，格式变了。</p>
+</div>
+
+<div class="qa">
+  <p class="q">怎么理解 ODE？是不是积分得下一拍，变数只有 \(Bu\)？</p>
+  <p>积分直觉对：\(x(t+\Delta t)\approx x+\Delta t\cdot(Ax+Bu)\)。<br>
+  「只有 \(Bu\)」差半句：下一拍由 <strong>\(Ax\)（自然漂移）+ \(Bu\)（你操纵）</strong> 共同决定。你能选的只有 \(u\)；从 \(x_0\) 到远处 \(x_1\) 通常要<strong>一串</strong> \(u\)，不是一拍到位。</p>
+</div>
+</section>
+
+<section id="state-ab">
+<h2>2. 状态方程与 \(A,B\) <small style="font-weight:400;color:var(--muted)">→ 控制思路 §4 · 理论篇 §4.4–5</small></h2>
+
+<div class="qa">
+  <p class="q">\(A,B\) 怎么「简化」得到？我矩阵乘法对不上</p>
+  <p><strong>不是化简，是系数对号入座。</strong> 先有一阶式 \(\dot x_1=x_2\)、\(\dot x_2=\ldots\)，再把各式对 \(x_1,x_2,u\) 的系数排进 \(A,B\)。用 \(Ax+Bu\) 验算应回到原一阶式。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(Ax+Bu\) 第一行的 \(x_2\)「去哪了」？表示什么？</p>
+  <p>没丢。结果向量第一行就是 \(x_2\)，且 \(\dot x_1=x_2\)。因 \(x_1=q,x_2=\dot q\)，即<strong>位置变化率 = 速度</strong>（运动学行）。</p>
+</div>
+
+<div class="qa">
+  <p class="q">质量矩阵形如何变成 \(\mathbf{A}_a,\mathbf{B}_a\)？</p>
+  <p>左乘 \(M_q^{-1}\)：\(\ddot q=M_q^{-1}(\text{重力项}+[b_1;b_2]\tau)\)。再按 \([s,\theta,\dot s,\dot\theta]\) 排成 \(2\times4\) 的 \(\mathbf{A}_a\) 与 \(2\times1\) 的 \(\mathbf{B}_a\)（无摩擦时 \(\dot s,\dot\theta\) 列常为 0）。</p>
+</div>
+
+<div class="qa">
+  <p class="q">为什么左边是 \(M_q[\ddot s;\ddot\theta]\)？</p>
+  <p>多自由度版的 \(ma\)：耦合时每个方程同时含两个加速度，系数排成 \(M_q\)。来源是动能二次型；拉格朗日后最高阶项必为 \(M_q\ddot q\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">补全 \(A\) 时，运动学 \(\dot\theta,\dot s\) 的系数？</p>
+  <p>定义式：\(\dot s=\dot s\)、\(\dot\theta=\dot\theta\)。对应行只在「对准自己速度」的位置填 <strong>1</strong>，其余 0。\(\mathbf{A}_a,\mathbf{B}_a\) 只填加速度那两行；\(B\) 的运动学两行通常为 0。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(a_{21},a_{41}\) 与 \(Q_s,Q_\theta\) 关系？</p>
+  <p><strong>不是一路。</strong> \(a_{21},a_{41}\) ← 重力 \(Mgl\theta\) 经 \(M_q^{-1}\) → 进 \(A\)；\(Q_s,Q_\theta\) ← 力矩虚功 → 经 \(M_q^{-1}\) → 进 \(B\)。</p>
+</div>
+</section>
+
+<section id="y-ctrl">
+<h2>3. 输出方程与可控性 <small style="font-weight:400;color:var(--muted)">→ 理论篇 §5</small></h2>
+
+<div class="qa">
+  <p class="q">\(y=Cx+Du\) 是什么？和可控性里的 \(C\) 一样吗？</p>
+  <p><strong>输出方程</strong>：测到/关心的量。\(C\)=输出矩阵，\(D\) 常为 0。<br>
+  可控性矩阵 \(\mathcal{C}=[B\ AB\ A^2B\ A^3B]\) 是<strong>另一个东西</strong>（建议写成 \(\mathcal{C}\)），由 \(A,B\) 拼接，不是传感器定义。</p>
+</div>
+
+<div class="qa">
+  <p class="q">可控性原理？为何 \(\mathrm{rank}(\mathcal{C})=4\) 就可控？</p>
+  <p>\(u\) 经 \(B\) 撬动状态，再经 \(A,A^2,\ldots\) 传到别的方向。能撬的方向 = \(\mathrm{span}\{B,AB,A^2B,A^3B\}\)。rank=4（=状态维数）⇔ 张满 \(\mathbb{R}^4\) ⇔ 完全可控。</p>
+</div>
+
+<div class="qa">
+  <p class="q">细化：4 个 \(\Delta t\)，\(u_0\sim u_3\)</p>
+  <p>离散：\(x_{k+1}=A_d x_k+B_d u_k\)。四步后：</p>
+  <div class="eq-box">
+  \[
+  x_4=A_d^4 x_0+A_d^3 B_d u_0+A_d^2 B_d u_1+A_d B_d u_2+B_d u_3
+  \]
+  </div>
+  <p>早施加的 \(u\) 被 \(A_d\) 传得更多。\(\mathcal{C}_d=[B_d\ A_dB_d\ A_d^2B_d\ A_d^3B_d]\) 的列就是这些方向；rank=4 ⇔ 存在 \((u_0,\ldots,u_3)\) 使 \(\Delta x\) 任意。</p>
+</div>
+</section>
+
+<section id="phys">
+<h2>4. 物理与惯量 <small style="font-weight:400;color:var(--muted)">→ 理论篇 §1 · 参数表</small></h2>
+
+<div class="qa">
+  <p class="q">平行轴：本车 \(I_{\mathrm{axis}}\)？</p>
+  <p>绕轮轴：\(I_{\mathrm{axis}}=I+Ml^2\)。参数表填的 \(I\) 是<strong>绕质心</strong>，不要把已加 \(Ml^2\) 的数再填进去。</p>
+</div>
+
+<div class="qa">
+  <p class="q">电机重心在轴下怎么算？</p>
+  <p>\(h_{\mathrm{电机}}\) 填<strong>负数</strong>；\(l=\sum m_i h_i/M\)（可仍 &gt;0）；\(I_{\mathrm{axis}}=I+Ml^2\) 照旧（用 \(l^2\)）。起步 \(I\approx\sum m_i(h_i-l)^2\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(I\) 与 \(Ml^2\) 是轮 / 车体惯量吗？</p>
+  <p><strong>都是车体俯仰：</strong> \(I\)=车体绕质心；\(Ml^2\)=平行轴贡献。轮惯量 \(I_w\) 进 \(m_{\mathrm{eff}}=m_w+I_w/r^2\)，不在 \((I+Ml^2)\dot\theta^2\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(I_{\mathrm{车}}\)、\(I_{\mathrm{轮}}\) 怎么表示（无数值）？</p>
+  <ul>
+    <li>车：\(I\) 或 \(I_{\mathrm{cm}}\)；绕轴 \(I+Ml^2\)</li>
+    <li>轮：\(I_w\)；模型里常 \(\to I_w/r^2\) 并进 \(m_{\mathrm{eff}}\)</li>
+  </ul>
+</div>
+
+<div class="qa">
+  <p class="q">教材 \(M,m\) 与本仓库 \(M,m_{\mathrm{eff}}\)？</p>
+  <p>字母对调：教材小车 \(M\) ↔ 本仓库 \(m_{\mathrm{eff}}\)；教材摆 \(m\) ↔ 本仓库车体 \(M\)。按「谁平移 / 谁俯仰」记。</p>
+</div>
+</section>
+
+<section id="pend">
+<h2>5. 摆与标准二阶系统 <small style="font-weight:400;color:var(--muted)">→ 理论篇 §2 · 增益理论</small></h2>
+
+<div class="qa">
+  <p class="q">下垂单摆模型怎么构造？</p>
+  <p>切向：\(ml\ddot\theta=-mg\sin\theta\) ⇒ \(\ddot\theta+(g/l)\sin\theta=0\)。或支点取矩 / 拉格朗日，同结果。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(\omega_0=\sqrt{g/l}\) 怎么来？</p>
+  <p>线性化 \(\ddot\theta+(g/l)\theta=0\)，对照标准形 \(\ddot x+\omega_0^2 x=0\)，认出 \(\omega_0^2=g/l\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">「标准二阶阻尼系统」是什么？要背吗？</p>
+  <p>记住 \(\ddot x+2\zeta\omega_n\dot x+\omega_n^2 x=0\)：\(\omega_n\)=快慢，\(\zeta\)=抖不抖。倒立摆增益反解式可现场推，不必死背。</p>
+</div>
+
+<div class="qa">
+  <p class="q">为何系数能表示自然频率、阻尼比？</p>
+  <p>解的形状里本来就有振荡频率 \(\sqrt{c}\) 与衰减率 \(b/2\)；令 \(c=\omega_n^2\)、\(b=2\zeta\omega_n\) 只是把这两个物理量参数化。</p>
+</div>
+</section>
+
+<section id="lag">
+<h2>6. 拉格朗日细节 <small style="font-weight:400;color:var(--muted)">→ 拉格朗日篇</small></h2>
+
+<div class="qa">
+  <p class="q">倒立摆偏导为何没写全？</p>
+  <p>已补进 <a href="./lagrange_dynamics_why.html#inverted-fixed">§9.1</a>、<a href="./lagrange_dynamics_why.html#wip-partials">§10.6</a>。关键差在 \(\partial L/\partial\theta\) 符号（下垂恢复 / 倒立倾覆）。</p>
+</div>
+
+<div class="qa">
+  <p class="q">式 (10)（\(x\) 方程）怎么从 \(L\) 推到？</p>
+  <ol>
+    <li>\(\partial L/\partial\dot x=(M+m)\dot x-ml\dot\theta\cos\theta\)</li>
+    <li>\(\mathrm{d}/\mathrm{d}t\) → \((M+m)\ddot x-ml\ddot\theta\cos\theta+ml\dot\theta^2\sin\theta\)</li>
+    <li>\(\partial L/\partial x=0\)</li>
+    <li>左边 \(=Q_x=F(t)\)</li>
+  </ol>
+</div>
+
+<div class="qa">
+  <p class="q">为何左边等于 \(F(t)\)？</p>
+  <p>右边是广义力 \(Q_x\)；只 \(\delta x\) 时 \(\delta W=F\delta x\) ⇒ \(Q_x=F\)。重力在 \(V\) 里，不进 \(Q_x\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(\theta\) 方程求的是什么？为何 =0？</p>
+  <p>摆角自由度的运动方程。经典小车模型对 \(\theta\) 无外力矩 ⇒ \(Q_\theta=0\)。轮式车常有 \(Q_\theta=-\tau\)，右边<strong>不是</strong> 0。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(\mathbf{r}_k\) 是什么？</p>
+  <p>第 \(k\) 块质量的位置矢量；\(\dot r_k\) 为速度。\(r_k=r_k(q)\)，由此把动能写成 \(\dot q\) 的二次型。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(Ml\cos\theta\,\dot s\dot\theta\) 该不该负号？</p>
+  <p>本约定 \(x_M=s+l\sin\theta\) 下是<strong>正号</strong>。教材出现负号，多半是 \(\theta\) 零点或 \(x=s\pm l\sin\theta\) 定义不同。</p>
+</div>
+
+<div class="qa">
+  <p class="q">为何可写成 \([b_1;b_2]\tau\)？</p>
+  <p>广义力 \(Q\) 对单个 \(\tau\) 线性：虚功得 \(Q_s=\tau/r\)、\(Q_\theta=-\tau\)（示意）⇒ \(Q=[b_1;b_2]\tau\)，放到 \(M_q\ddot q=\ldots+Q\) 右边。</p>
+</div>
+</section>
+
+<section id="mq">
+<h2>7. 质量矩阵从哪来 <small style="font-weight:400;color:var(--muted)">→ 拉格朗日 · 理论篇 §4</small></h2>
+
+<div class="qa">
+  <p class="q">当前 \(M_q\) 通过什么得来？</p>
+  <p>写动能 \(T\) → 整理成 \(\tfrac12\dot q^\top M_q(q)\dot q\) → 读出系数。线性化 \(\cos\theta\approx1\) 得常矩阵 \(m_{ij}\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(T=\tfrac12\dot q^\top M_q\dot q\) 背后原理？</p>
+  <p>直角坐标动能 \(\propto v^2\)；\(v=\sum(\partial r/\partial q_i)\dot q_i\) 对 \(\dot q\) 线性 ⇒ \(T\) 对 \(\dot q\) 二次 ⇒ 必能写成该二次型。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(m_{11},m_{12}\) 为何是那种形式？</p>
+  <p>线性化后加速度系数：\(m_{11}=M+m_{\mathrm{eff}}\)，\(m_{12}=m_{21}=Ml\)，\(m_{22}=I+Ml^2\)。来自动能二次型 / 拉格朗日最高阶项，不是另设。</p>
+</div>
+</section>
+
+<section id="lqr">
+<h2>8. LQR 与 \(u^\star\) <small style="font-weight:400;color:var(--muted)">→ 理论篇 §7.2.1–7.5</small></h2>
+
+<div class="qa">
+  <p class="q">\(u^\star\) 完整推导链必须含哪些概念？</p>
+  <p>值函数 → 贝尔曼原理 → DP/HJB → LQ 特化 → \(\min_u\) → CARE/DARE。详见 <a href="./lqr_balance_theory.html#u-star">§7.2.1</a>。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(V(x+\dot x\,\mathrm{d}t)\) 一阶泰勒怎么展开？</p>
+  <p>多元：\(V(x+\Delta x)\approx V+(\partial V/\partial x)^\top\Delta x\)；\(\Delta x=\dot x\,\mathrm{d}t\)。列梯度转置后与位移点乘。\(O(\mathrm{d}t^2)\) 在除以 \(\mathrm{d}t\) 后丢掉。→ <a href="./lqr_balance_theory.html#taylor">§泰勒</a></p>
+</div>
+
+<div class="qa">
+  <p class="q">\(V=x^\top Px\) 时 \((\partial V/\partial x)^\top=2x^\top P\) 吗？</p>
+  <p>是（\(P=P^\top\)）。列梯度 \(\partial V/\partial x=2Px\)，转置得 \(2x^\top P\)。HJB 里 \((\partial V/\partial x)^\top\dot x=2x^\top P(Ax+Bu)\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">为何 \(P=P^\top\)？</p>
+  <p>二次型只依赖对称部分；CARE 在 \(Q\) 对称时解也对称。否则 \(x^\top PBu\) 转置后会出现 \(P^\top\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">\(u^\top Ru\) 求导为何是 \(2Ru\)？</p>
+  <p>\(\sum_{i,j}u_i R_{ij}u_j\) 对 \(u_k\) 碰到左右各一次 → \((R+R^\top)u\)；\(R\) 对称 → \(2Ru\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">矩阵求导时前面为何有 \(B^\top\)？</p>
+  <p>\(x^\top PBu=(B^\top Px)^\top u\)（用 \(P=P^\top\)）。\(\partial(a^\top u)/\partial u=a\)，\(a=B^\top Px\)。\(B^\top\) 来自 \((PB)^\top\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">HJB 里对 \(u\) 求最优的步骤？</p>
+  <p>固定 \(x\)，只留 \(u^\top Ru+2x^\top PBu\)；\(\partial/\partial u=2Ru+2B^\top Px=0\) ⇒ \(u^\star=-R^{-1}B^\top Px\)。Hessian \(2R\succ0\) 确为极小。</p>
+</div>
+
+<div class="qa">
+  <p class="q">代价二次 + 动力学线性 ⇒ 未来代价还是二次型？非线性呢？</p>
+  <p>LQ 下贝尔曼递推封闭：\(V(Ax+Bu)\) 仍二次，\(\min_u\) 后 \(V\) 仍 \(x^\top Px\)。非线性时 \(V(f(x,u))\) 一般不再二次，真实 \(V\) 无闭式；LQR 只是工作点附近近似。</p>
+</div>
+
+<div class="qa">
+  <p class="q">闭环 \(\dot x=(A-BK)x\) 是否要求特征值为复数？</p>
+  <p>否。连续稳定要 \(\mathrm{Re}(\lambda)<0\)，可以是负实根。复根只表示有振荡模态。→ <a href="./lqr_balance_theory.html#closedloop">§7.4</a></p>
+</div>
+</section>
+
+<section id="career">
+<h2>9. 面试与落地 <small style="font-weight:400;color:var(--muted)">→ stage5 工程文档</small></h2>
+
+<div class="qa">
+  <p class="q">理论篇 §4 对轮足运动岗重要吗？</p>
+  <p>重要（建模基础），但不是唯一重点。能讲清坐标→线性化→状态方程；\(m_{ij}\) 可推更好。架构、接触、估计常更被问。</p>
+</div>
+
+<div class="qa">
+  <p class="q">JD 写了 LQR + 前馈？</p>
+  <p>§4+LQR 变核心；另练：离散 LQR、\(Q/R\)、\(u=-K(x-x_{\mathrm{ref}})+u_{\mathrm{ff}}\)、车上 <code>kff</code>/软停、力矩单位与 \(\mathbf{B}\)。</p>
+</div>
+
+<div class="qa">
+  <p class="q">C++ 有什么库解 Riccati？直接 SciPy 再填 \(K\) 可以吗？</p>
+  <p>Eigen 无现成 ARE。推荐 PC：<code>scipy.linalg.solve_discrete_are</code>（先 <code>cont2discrete</code> ZOH，\(dt=0.005\)）。固件只填 \(-K\)（对齐状态顺序、力矩单位）。ESP32 环里不解 Riccati。Drake/CT/SLICOT 可用于 C++ 离线，非本仓库默认。→ <a href="./lqr_balance_theory.html#scipy-k">§7.5.1</a></p>
+</div>
+</section>
+
+<section id="index">
+<h2>10. 提问对照表（去重）</h2>
+<table>
+  <tr><th>#</th><th>提问摘要</th><th>知识位置</th></tr>
+  <tr><td>1</td><td>阅读顺序还缺什么</td><td>§0 / stage5 链</td></tr>
+  <tr><td>2</td><td>ODE 全称</td><td>§1</td></tr>
+  <tr><td>3</td><td>\(\dot x\) 是否导数</td><td>§1</td></tr>
+  <tr><td>4</td><td>是否一阶 ODE</td><td>§1</td></tr>
+  <tr><td>5</td><td>如何理解 ODE / \(Bu\)</td><td>§1</td></tr>
+  <tr><td>6</td><td>\(A,B\) 如何得到</td><td>§2</td></tr>
+  <tr><td>7</td><td>\(Ax+Bu\) 第一行 \(x_2\)</td><td>§2</td></tr>
+  <tr><td>8</td><td>\(M_q\to A_a,B_a\)</td><td>§2</td></tr>
+  <tr><td>9</td><td>\(M_q\ddot q\) 原理</td><td>§2 / §7</td></tr>
+  <tr><td>10</td><td>补全 \(A\) 运动学行</td><td>§2</td></tr>
+  <tr><td>11</td><td>\(a_{21},a_{41}\) vs \(Q\)</td><td>§2</td></tr>
+  <tr><td>12</td><td>\(y=Cx+Du\) / 可控性 \(C\)</td><td>§3</td></tr>
+  <tr><td>13</td><td>可控性 rank=4</td><td>§3</td></tr>
+  <tr><td>14</td><td>4 步 \(u_0\sim u_3\)</td><td>§3</td></tr>
+  <tr><td>15</td><td>\(I_{\mathrm{axis}}\) / 轴下电机</td><td>§4</td></tr>
+  <tr><td>16</td><td>\(I\) vs \(Ml^2\) / 车轮惯量</td><td>§4</td></tr>
+  <tr><td>17</td><td>教材 \(M,m\) vs \(m_{\mathrm{eff}}\)</td><td>§4</td></tr>
+  <tr><td>18</td><td>单摆 / \(\omega_0\) / 二阶标准形</td><td>§5</td></tr>
+  <tr><td>19</td><td>拉格朗日偏导 / 式10 / \(F(t)\) / \(Q_\theta=0\)</td><td>§6</td></tr>
+  <tr><td>20</td><td>\(r_k\) / 交叉项符号 / \([b_1;b_2]\tau\)</td><td>§6</td></tr>
+  <tr><td>21</td><td>\(M_q\) 来源 / \(T\) 二次型 / \(m_{ij}\)</td><td>§7</td></tr>
+  <tr><td>22</td><td>\(u^\star\) / 贝尔曼 / HJB</td><td>§8 · 理论 §7.2.1</td></tr>
+  <tr><td>23</td><td>面试 / JD LQR+前馈</td><td>§9</td></tr>
+  <tr><td>24</td><td>\(V(x+\dot x\mathrm{d}t)\) 泰勒</td><td>§8 · 理论 #taylor</td></tr>
+  <tr><td>25</td><td>\((\partial V/\partial x)^\top=2x^\top P\)</td><td>§8</td></tr>
+  <tr><td>26</td><td>\(P=P^\top\)</td><td>§8</td></tr>
+  <tr><td>27</td><td>\(u^\top Ru\to 2Ru\)</td><td>§8 · 理论 #matderiv</td></tr>
+  <tr><td>28</td><td>求导中的 \(B^\top\)</td><td>§8</td></tr>
+  <tr><td>29</td><td>HJB 对 \(u\) 求最优</td><td>§8</td></tr>
+  <tr><td>30</td><td>LQ 封闭 / 非线性 \(V\)</td><td>§8</td></tr>
+  <tr><td>31</td><td>\(A-BK\) 特征值是否须为复数</td><td>§8 · 理论 §7.4</td></tr>
+  <tr><td>32</td><td>SciPy DARE + 固件填 \(K\)</td><td>§9 · 理论 §7.5.1</td></tr>
+</table>
+<p>已并入主文档的增补见各篇目录锚点；本页作「提问→结构」索引，避免答案只留在聊天记录里。</p>
+</section>
+
+<footer class="note">
+  <p>路径：<code>docs/lqr_study_qa.html</code> · 与三份理论 HTML 配套。</p>
+</footer>
+</main>
+</div>
+</body>
+</html>

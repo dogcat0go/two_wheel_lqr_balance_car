@@ -13,6 +13,10 @@ sections: true
 
 本文档只讲一件事：**在没有电流采样硬件的前提下，如何用台架实验把"电压前馈"公式里的物理常数标出来**。
 
+> **现场操作请用 SOP（含每步验收关卡与交叉检测）：**  
+> [`tau_pwm_calibration_sop.md`](tau_pwm_calibration_sop.md)  
+> 本文保留公式与原理；SOP 含记录表、Gate A/R/Kb/Kt/X/D/V/F、不合格返工路径。
+
 ---
 
 ## 为什么需要这一层 {#why}
@@ -128,6 +132,7 @@ K_t = \frac{\tau}{I} = \frac{mgr_{\mathrm{wheel}}}{I}
 
 | 内容 | 主文档 |
 | --- | --- |
+| **现场 SOP + 验收 Gate** | [`tau_pwm_calibration_sop.md`](tau_pwm_calibration_sop.md) |
 | 何时需要这层映射（PID 不需要，LQR 必须） | [Sim2Real_list · 阶段 5](./Sim2Real_list.md#phases) |
 | 标定方法论（最小二乘/过原点拟合） | [lqr_slope_feedforward · c 标定](./lqr_slope_feedforward.md#c-calibration) |
 | 力矩单位在 LQR 里的来源 | [动力学清单 §4](./dynamics_kinematics_checklist.md) |

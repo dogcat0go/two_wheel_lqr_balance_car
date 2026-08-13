@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>两轮平衡车 LQR 理论复习：从牛顿力学到离散最优控制</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --paper: #fffcf7;
+    --ink: #1a1f24;
+    --muted: #5a6570;
+    --line: #d8d2c6;
+    --accent: #0b5f6b;
+    --accent-soft: #e6f2f3;
+    --warn: #8a3b12;
+    --warn-bg: #f8eee6;
+    --code-bg: #eef1f3;
+    --shadow: 0 1px 0 rgba(26,31,36,.04), 0 12px 40px rgba(26,31,36,.06);
+    --radius: 10px;
+    --max: 52rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #e8f4f5 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #f3efe6 0%, transparent 50%),
+      var(--bg);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong",
+      "Libertinus Serif", "Iowan Old Style", Georgia, serif;
+    line-height: 1.75;
+    font-size: 17px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: 240px minmax(0, var(--max));
+    gap: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  nav.toc {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding: 1rem;
+    background: rgba(255,252,247,.85);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(8px);
+    font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  nav.toc h2 {
+    margin: 0 0 .75rem;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--ink);
+    text-decoration: none;
+    padding: .22rem 0;
+    border-left: 2px solid transparent;
+    padding-left: .55rem;
+  }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .l2 { padding-left: 1.1rem; color: var(--muted); font-size: 12px; }
+  main {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 2.25rem 2rem 3rem;
+  }
+  header.doc-head {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header.doc-head .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .5rem;
+  }
+  h1 {
+    font-size: clamp(1.6rem, 3vw, 2.15rem);
+    line-height: 1.25;
+    margin: 0 0 .75rem;
+    font-weight: 700;
+  }
+  .lead {
+    color: var(--muted);
+    margin: 0;
+    font-size: 1.02rem;
+  }
+  h2 {
+    margin: 2.75rem 0 1rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--line);
+    font-size: 1.45rem;
+    color: var(--accent);
+  }
+  h2:first-of-type { border-top: none; }
+  h3 {
+    margin: 1.75rem 0 .65rem;
+    font-size: 1.15rem;
+  }
+  h4 {
+    margin: 1.25rem 0 .4rem;
+    font-size: 1.02rem;
+  }
+  p { margin: .7rem 0; }
+  ul, ol { padding-left: 1.35rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  code, .mono {
+    font-family: "IBM Plex Mono", "Source Code Pro", ui-monospace, monospace;
+    font-size: .9em;
+  }
+  code {
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 4px;
+  }
+  pre {
+    background: #1e262b;
+    color: #e8eef1;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .95rem;
+    margin: 1rem 0 1.25rem;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: .55rem .65rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: .85rem 1rem;
+    margin: 1.1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn {
+    border-left-color: var(--warn);
+    background: var(--warn-bg);
+  }
+  .callout .t {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 650;
+    font-size: .92rem;
+    margin: 0 0 .35rem;
+  }
+  .eq-box {
+    background: #f3f7f8;
+    border: 1px solid #c9dde0;
+    border-radius: 8px;
+    padding: .2rem 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  .fig {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: #fbfaf7;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: .92rem;
+  }
+  .fig .cap {
+    color: var(--muted);
+    margin-top: .65rem;
+    font-size: .85rem;
+  }
+  .ascii {
+    white-space: pre;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    overflow-x: auto;
+    margin: 0;
+  }
+  .roadmap {
+    display: grid;
+    gap: .55rem;
+    margin: 1rem 0 1.5rem;
+  }
+  .roadmap .step {
+    display: grid;
+    grid-template-columns: 2.2rem 1fr;
+    gap: .75rem;
+    align-items: start;
+    padding: .7rem .85rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    font-size: .92rem;
+  }
+  .roadmap .n {
+    width: 2.2rem; height: 2.2rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: .85rem;
+  }
+  footer.note {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .9rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    main { padding: 1.5rem 1.1rem 2.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <h2>目录</h2>
+  <a href="#map">0. 知识地图</a>
+  <a href="#mech">1. 力学基础</a>
+  <a class="l2" href="#newton">1.1 牛顿定律</a>
+  <a class="l2" href="#torque">1.2 力矩与转动</a>
+  <a class="l2" href="#inertia">1.3 转动惯量</a>
+  <a class="l2" href="#energy">1.4 能量与功</a>
+  <a class="l2" href="#com">1.5 质心</a>
+  <a class="l2" href="#friction">1.6 摩擦</a>
+  <a class="l2" href="#noninertial">1.7 非惯性系</a>
+  <a href="#pendulum">2. 摆与倒立摆</a>
+  <a class="l2" href="#linearize">2.3 线性化</a>
+  <a href="#kinematic">3. 运动学</a>
+  <a href="#dynamics">4. 动力学建模</a>
+  <a class="l2" href="#fbd">4.1 受力分析</a>
+  <a class="l2" href="#newton-euler">4.2 牛顿–欧拉</a>
+  <a class="l2" href="#lagrange">4.3 拉格朗日</a>
+  <a class="l2" href="#linear-model">4.4 线性化模型</a>
+  <a href="#state">5. 状态方程</a>
+  <a href="#quad">6. 二次型</a>
+  <a href="#lqr">7. LQR 基础</a>
+  <a class="l2" href="#u-star">7.2.1 \(u^\star\) 全推导</a>
+  <a class="l2" href="#taylor">泰勒 / \(\nabla V\)</a>
+  <a class="l2" href="#matderiv">矩阵求导</a>
+  <a class="l2" href="#riccati">7.3 Riccati</a>
+  <a class="l2" href="#closedloop">7.4 闭环极点</a>
+  <a class="l2" href="#discrete">7.5 离散 LQR</a>
+  <a class="l2" href="#scipy-k">7.5.1 SciPy 填 \(K\)</a>
+  <a href="#design">8. 平衡车设计闭环</a>
+  <a href="#firmware">9. 与本车固件对齐</a>
+  <a href="#checklist">10. 落地前检查清单</a>
+  <a href="#worked">11. 完整推演示例</a>
+  <a href="#faq">12. 易混淆点 FAQ</a>
+  <a href="#appendix">附录</a>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="eyebrow">FishBot · Stage 5 理论预习</p>
+  <h1>两轮平衡车 LQR 理论复习</h1>
+  <p class="lead">
+    从高中/大学物理（力、力矩、转动惯量、牛顿定律）出发，经倒立摆动力学与状态空间，
+    一直推到二次型代价、连续/离散 LQR，并落到本仓库状态约定与力矩接口。
+    读完应能回答：为什么 \(u=-\mathbf{K}x\)，\(\mathbf{Q}/\mathbf{R}\) 在调什么，以及为什么没有可靠 \(\tau\) 接口时 \(K\) 会白算。
+  </p>
+</header>
+
+<!-- ===================== 0 ===================== -->
+<section id="map">
+<h2>0. 知识地图：你要串起的一条链</h2>
+<p>
+平衡车控制不是“调四个增益的玄学”。LQR 之所以能给出那四个数，是因为背后有一条可追溯的因果链：
+</p>
+<div class="roadmap">
+  <div class="step"><div class="n">1</div><div><strong>物理对象</strong>：车体 + 轮子，在重力场中运动；约束是轮地纯滚动。</div></div>
+  <div class="step"><div class="n">2</div><div><strong>运动学</strong>：几何与速度关系。例如 \(s=r\varphi\)，把“轮子转了多少”换成“车走了多远”。</div></div>
+  <div class="step"><div class="n">3</div><div><strong>动力学</strong>：力/力矩如何产生加速度。最终得到 \(\ddot\theta,\ddot s\) 与电机力矩 \(\tau\) 的关系。</div></div>
+  <div class="step"><div class="n">4</div><div><strong>线性化</strong>：在直立平衡点附近用一阶近似，得到 \(\dot{\mathbf{x}}=\mathbf{A}x+\mathbf{B}u\)。</div></div>
+  <div class="step"><div class="n">5</div><div><strong>最优控制</strong>：挑一个二次型代价 \(J\)，求解使 \(J\) 最小的状态反馈 \(\mathbf{K}\)。</div></div>
+  <div class="step"><div class="n">6</div><div><strong>离散化落地</strong>：固件按 \(\Delta t=5\,\mathrm{ms}\) 跑，所以要用离散 LQR（ZOH + DARE），不能直接拿连续 \(K\) 糊弄。</div></div>
+</div>
+<div class="callout">
+  <p class="t">读法建议</p>
+  <p style="margin:0">若你对“倒立摆为什么要朝倒的方向追”已经熟，可快读第 1–2 章，把精力放在第 4–7 章。若刚接触，请按顺序读：后面每一层都默认你接受了前一层的符号与直觉。</p>
+</div>
+<p>本文符号与本仓库阶段 3/4/5 约定一致（详见第 9 章）：</p>
+<table>
+  <tr><th>符号</th><th>含义</th><th>单位</th></tr>
+  <tr><td>\(\theta\)</td><td>车身俯仰角，前倾为正</td><td>rad</td></tr>
+  <tr><td>\(\dot\theta\)</td><td>俯仰角速度</td><td>rad/s</td></tr>
+  <tr><td>\(s\)</td><td>轮轴水平位移（定点时相对参考）</td><td>m</td></tr>
+  <tr><td>\(v=\dot s\)</td><td>轮轴水平速度</td><td>m/s</td></tr>
+  <tr><td>\(u=\tau\)</td><td>左右轮合力矩（或等效总力矩）</td><td>N·m</td></tr>
+  <tr><td>\(M,m,l,r,I\)</td><td>车体质量、轮侧质量、质心高度、轮半径、车体惯量</td><td>SI</td></tr>
+</table>
+</section>
+
+<!-- ===================== 1 ===================== -->
+<section id="mech">
+<h2>1. 力学基础：从“会推箱子”到“会算力矩”</h2>
+
+<h3 id="newton">1.1 牛顿运动定律（平动）</h3>
+<p>
+把车体或轮子当成质点时，核心只有一条：
+</p>
+<div class="eq-box">
+\[
+\sum \mathbf{F} = m\,\mathbf{a}
+\]
+</div>
+<p>分量形式在水平方向特别有用。设向右为正：</p>
+<div class="eq-box">
+\[
+\sum F_x = m\,\ddot x
+\]
+</div>
+<p>含义拆开说：</p>
+<ul>
+  <li><strong>左边</strong>：所有水平力的代数和（摩擦力、地面推力、电机通过轮子传来的水平力……）。</li>
+  <li><strong>右边</strong>：质量 × 加速度。力越大或质量越小，加速越猛。</li>
+</ul>
+<div class="callout">
+  <p class="t">和平衡车的直接联系</p>
+  <p style="margin:0">轮子要“追着车身倒的方向跑”，本质是：电机力矩 → 地面水平力 → \(\ddot s\) 变大 → 轮轴相对质心产生反向“惯性效应”，把 \(\theta\) 扳回来。没有水平加速度，只有“转轮子装样子”，扶不起来。</p>
+</div>
+
+<p>竖直方向通常有约束：轮子不陷入地面，法向力 \(N\) 与重力平衡。建模时常写 \(N-mg=0\)（不跳起），除非分析离地、颠簸。</p>
+
+<h3 id="torque">1.2 力矩、力偶与转动方程</h3>
+<p>
+力矩描述“力让物体绕某点转动的趋势”。对平面问题，取垂直纸面向外为正（右手定则）：
+</p>
+<div class="eq-box">
+\[
+\tau = r_\perp F = |\mathbf{r}\times\mathbf{F}|
+\]
+</div>
+<p>
+例如重力对轮轴：车体质心在轴上方 \(l\)，前倾 \(\theta\) 时，重力力臂是 \(l\sin\theta\)（小角度 \(\approx l\theta\)），重力力矩试图让车身继续倒：
+</p>
+<div class="eq-box">
+\[
+\tau_g = M g\, l\sin\theta
+\quad(\text{前倾使 }\ddot\theta\text{ 增大的方向为正时})
+\]
+</div>
+<p>
+刚体绕<strong>固定轴</strong>或对质心的转动，有欧拉形式（平面）：
+</p>
+<div class="eq-box">
+\[
+\sum \tau = I\,\alpha = I\,\ddot\theta
+\]
+</div>
+<p>
+这是平动 \(\sum F=ma\) 的转动版：力矩之和 = 转动惯量 × 角加速度。
+</p>
+
+<h4>取矩点怎么选？</h4>
+<ul>
+  <li>对<strong>质心</strong>取矩：\(\sum\tau_{\mathrm{cm}}=I_{\mathrm{cm}}\ddot\theta\) 永远成立（平面刚体）。</li>
+  <li>对<strong>瞬时静止点</strong>（如纯滚动接触点）取矩：有时能消掉未知摩擦力，推导更短。</li>
+  <li>对<strong>轮轴</strong>取矩：本车模型里很常见——轴是几何枢纽，力臂清楚。</li>
+</ul>
+<div class="callout warn">
+  <p class="t">易错点</p>
+  <p style="margin:0">随便找一个加速运动的点取矩，不能无脑写 \(\sum\tau=I\ddot\theta\)。必须满足“质心 / 固定轴 / 特殊瞬时轴”等条件。初学请优先对质心或轮轴，并明确每一力的力臂符号。</p>
+</div>
+
+<h3 id="inertia">1.3 转动惯量 \(I\)</h3>
+<p>
+转动惯量衡量“转起来有多难”：
+</p>
+<div class="eq-box">
+\[
+I = \int r_\perp^2\,\mathrm{d}m
+\]
+</div>
+<p>常用结果（考试与工程估算都会用）：</p>
+<table>
+  <tr><th>物体</th><th>绕轴</th><th>\(I\)</th></tr>
+  <tr><td>质点</td><td>距点 \(d\)</td><td>\(md^2\)</td></tr>
+  <tr><td>细杆长 \(L\)</td><td>过中心垂直杆</td><td>\(\tfrac{1}{12}ML^2\)</td></tr>
+  <tr><td>实心圆盘 / 圆柱</td><td>中心轴</td><td>\(\tfrac{1}{2}mr^2\)</td></tr>
+  <tr><td>薄圆环</td><td>中心轴</td><td>\(mr^2\)</td></tr>
+</table>
+<p><strong>平行轴定理</strong>（把“绕质心”换成“绕平行轴”）：</p>
+<div class="eq-box">
+\[
+I_{\mathrm{axis}} = I_{\mathrm{cm}} + Md^2
+\]
+</div>
+<p>
+对本车：若车体绕质心惯量为 \(I\)，质心到轮轴距离为 \(l\)，则绕轮轴的惯量近似 \(I+Ml^2\)（把车体当刚体）。许多简化模型甚至把车体当成质点，令 \(I\approx 0\) 或 \(I\approx M_{\mathrm{上层}}l^2\)。
+</p>
+<div class="callout">
+  <p class="t">电机重心在轴下</p>
+  <p style="margin:0">高度相对轮轴：轴上为正、轴下为负。先算 \(l=\sum m_i h_i/M\)（电机 \(h&lt;0\)）；再 \(I_{\mathrm{axis}}=I+Ml^2\)（用 \(l^2\)）。\(I\) 与 \(Ml^2\) 都是<strong>车体</strong>俯仰贡献；轮惯量进 \(m_{\mathrm{eff}}=m_w+I_w/r^2\)，不要和 \(I\) 混。</p>
+</div>
+<div class="callout">
+  <p class="t">和参数表的关系</p>
+  <p style="margin:0">阶段 5 的 \(I\) 测不准时，可用点质量近似起步，并在 \(\mathbf{Q}/\mathbf{R}\) 里留裕度。电机转子惯量经减速比折算进轮侧等效质量 \(m_{\mathrm{rot}}=J_m n^2/r^2\)，不要和车体质量 \(M\) 双计。</p>
+</div>
+
+<h3 id="energy">1.4 动能、势能与功率</h3>
+<p>平动动能与转动动能：</p>
+<div class="eq-box">
+\[
+T_{\mathrm{trans}}=\tfrac12 m v^2,\qquad
+T_{\mathrm{rot}}=\tfrac12 I\omega^2
+\]
+</div>
+<p>重力势能（取轮轴高度为参考时，车体质心）：</p>
+<div class="eq-box">
+\[
+V = M g\, l\cos\theta
+\quad\text{或}\quad
+V = -M g\, l\cos\theta
+\]
+</div>
+<p>
+符号取决于你把 \(\theta=0\) 定义成直立还是下垂、势能零点选在哪。两种写法只要<strong>一致</strong>，Lagrange 方程结果相同。本文统一：\(\theta=0\) 为<strong>直立</strong>，势能取 \(V=Mgl\cos\theta\)（直立最高，不稳定），或等价地用 \(V=-Mgl\cos\theta\)（直立最低的是下垂摆）。倒立摆直立是势能极大，这正是不稳定的能量图像。
+</p>
+<p>电机功率与力矩、角速度：</p>
+<div class="eq-box">
+\[
+P = \tau\,\omega
+\]
+</div>
+<p>这解释了执行器侧：同样功率下，减速比把高速低力矩变成低速高力矩；LQR 的 \(u\) 若以 N·m 计，必须对应到轮轴输出力矩，而不是电机电枢侧的原始力矩。</p>
+
+<h3 id="com">1.5 质心与分段质量</h3>
+<p>离散质量系的质心：</p>
+<div class="eq-box">
+\[
+\mathbf{r}_{\mathrm{cm}}=\frac{\sum m_i\mathbf{r}_i}{\sum m_i}
+\]
+</div>
+<p>对本车，相对轮轴的质心高度：</p>
+<div class="eq-box">
+\[
+l_M=\frac{\sum m_i h_i}{M}
+\]
+</div>
+<p>
+\(l\) 偏小 → 倒塌特征频率 \(\sqrt{g/l}\) 变大 → 更难控。本车历史估算 \(l\approx0.012\,\mathrm{m}\) 时 \(\lambda\approx 30\,\mathrm{rad/s}\)，特征时间约 \(33\,\mathrm{ms}\) 量级，比“高个子平衡车”苛刻得多——这也是为什么 200 Hz 环是刚需。
+</p>
+
+<h3 id="friction">1.6 摩擦：静摩擦、滑动摩擦与纯滚动</h3>
+<p>
+地面水平力往往来自<strong>静摩擦</strong>。纯滚动且不打滑时，接触点瞬时速度为 0，静摩擦可以是静不定范围内的任意值（由动力学方程反推），不必等于 \(\mu N\)。
+</p>
+<div class="eq-box">
+\[
+|f| \le \mu_s N
+\]
+</div>
+<p>
+一旦需求的 \(f\) 超过上限，轮子打滑：运动学 \(s=r\varphi\) 失效，模型与控制一起崩。猛力矩、光滑地面、轮胎脏都会逼近这个边界。LQR 给出的 \(\tau\) 若经常顶满，不仅是执行器饱和问题，还可能是在挑战摩擦锥。
+</p>
+<p>
+库仑滑动摩擦 \(f=-\mu_k N\,\mathrm{sign}(v_{\mathrm{slip}})\) 是非线性继电器型，线性化模型通常<strong>不包含</strong>它；死区与静摩擦是实车抖振的常见来源，需要补偿或靠反馈硬抗，不要指望 \(\mathbf{Q},R\) 单独消掉。
+</p>
+
+<h3 id="noninertial">1.7 非惯性系：为什么“加速能扶正”</h3>
+<p>
+在随轮轴水平加速的参考系里，每个质量都感到惯性力 \(-m\ddot s\)（与加速方向相反）。对车体质心，这个力在垂直于杆（或近似水平）方向提供回复力矩——正是 \(l\ddot\theta=g\theta-\ddot s\) 里 \(-\ddot s\) 的来源。
+</p>
+<p>
+等价说法（惯性系）：轮轴向前加速时，下面先走、上面“落后”，相对角 \(\theta\) 被减小。两种说法同一物理。面试/自检时能用两种语言各讲一遍，说明真懂了。
+</p>
+
+<h3 id="angmom">1.8 角动量定理（补充视角）</h3>
+<div class="eq-box">
+\[
+\frac{\mathrm{d}}{\mathrm{d}t}\mathbf{L}=\sum\boldsymbol{\tau}_{\mathrm{ext}}
+\]
+</div>
+<p>
+对轮地接触点取角动量，有时能一步写出整车方程（接触点摩擦力力矩为 0）。推导经典倒立摆小车时这是捷径。需要时记住：外力矩改变角动量；内力矩成对抵消。
+</p>
+</section>
+
+<!-- ===================== 2 ===================== -->
+<section id="pendulum">
+<h2>2. 从单摆到倒立摆：稳定与不稳定</h2>
+
+<h3>2.1 下垂单摆（稳定）</h3>
+<p>刚性轻杆 + 质点，支点固定，\(\theta\) 从竖直下垂量起：</p>
+<div class="eq-box">
+\[
+\ddot\theta + \frac{g}{l}\sin\theta = 0
+\]
+</div>
+<p>小角度 \(\sin\theta\approx\theta\)：</p>
+<div class="eq-box">
+\[
+\ddot\theta + \frac{g}{l}\theta = 0
+\quad\Rightarrow\quad
+\omega_0=\sqrt{g/l}
+\]
+</div>
+<p>解是振荡，平衡点 \(\theta=0\) 稳定（受扰后回来晃）。</p>
+
+<h3>2.2 倒立摆（不稳定）</h3>
+<p>同一套几何，但平衡在<strong>竖直向上</strong>。若 \(\theta\) 仍从直立量起（前倾为正），线性化后：</p>
+<div class="eq-box">
+\[
+\ddot\theta - \frac{g}{l}\theta = 0
+\]
+</div>
+<p>特征根 \(\pm\sqrt{g/l}\)。一个正实根 → 指数发散。定义：</p>
+<div class="eq-box">
+\[
+\lambda=\sqrt{g/l}
+\]
+</div>
+<p>\(1/\lambda\) 就是“不控制时倒下的时间尺度”。车越矮 \(\lambda\) 越大。</p>
+
+<div class="fig">
+<pre class="ascii">
+        ●  质心 (M)
+        |
+        |  l
+        |
+    ────●────  轮轴 / 支点
+       / \
+      轮  轮
+
+  θ=0 直立；θ&gt;0 前倾
+  重力力矩 ≈ Mglθ 使 |θ| 增大（不稳定）
+  轮轴向右加速 ẍ&gt;0 时，相对“惯性力”把质心往后扳
+</pre>
+<p class="cap">图：轮式倒立摆几何。控制目标不是“把角度 PID 到 0”那么简单，而是用水平加速度去对抗重力力矩。</p>
+</div>
+
+<h3 id="linearize">2.3 线性化在做什么</h3>
+<p>
+真实方程含 \(\sin\theta,\cos\theta\)。在工作点 \(\theta_e=0,\dot\theta_e=0\) 附近做一阶泰勒：
+</p>
+<div class="eq-box">
+\[
+\sin\theta\approx\theta,\quad\cos\theta\approx 1,\quad
+\theta\dot\theta\approx 0\ \text{（二阶小量丢掉）}
+\]
+</div>
+<p>
+线性模型只在小角度可靠（通常几度到十几度）。摔大角度、坐地、猛推到 \(30^\circ\)，线性 LQR 不保证救得回来——固件里要有倾角过大切断。
+</p>
+
+<h3>2.4 轮轴可动时的关键直觉式</h3>
+<p>
+若暂时忽略轮质量、车体惯量，只保留“质点车体 + 可水平移动支点”，在非惯性系（跟轴一起加速）里看：
+</p>
+<div class="eq-box">
+\[
+l\ddot\theta = g\theta - \ddot s
+\]
+</div>
+<p>三项读法：</p>
+<ol>
+  <li>\(l\ddot\theta\)：角加速度对应的切向需求；</li>
+  <li>\(g\theta\)：重力带来的倾覆；</li>
+  <li>\(-\ddot s\)：轮轴向前加速时，相对把车身“甩”向后。</li>
+</ol>
+<p>
+因此开环（\(\ddot s=0\)）就是纯倒立摆；闭环若取 \(\ddot s=k_{a,\theta}\theta+k_{a,\dot\theta}\dot\theta\)，代回可变成标准二阶阻尼系统——这是阶段 3 用手调 PD 的理论原型，也是 LQR 在“只有姿态两态”时会给出的同类结构。
+</p>
+</section>
+
+<!-- ===================== 3 ===================== -->
+<section id="kinematic">
+<h2>3. 运动学：几何约束先于力</h2>
+<p>
+动力学回答“力如何改变运动”；运动学回答“坐标之间被几何钉死的关系”。两轮车（平面、不打滑）自由度比“自由刚体”少。
+</p>
+
+<h3>3.1 纯滚动约束</h3>
+<p>轮半径 \(r\)，轮转角 \(\varphi\)（前进为正），轮轴水平位移 \(s\)：</p>
+<div class="eq-box">
+\[
+s = r\,\varphi
+\quad\Rightarrow\quad
+\dot s = r\,\dot\varphi,\quad
+\ddot s = r\,\ddot\varphi
+\]
+</div>
+<p>
+打滑时该式不成立，模型与编码器里程都会漂。室内平整地面通常可当工作假设。
+</p>
+
+<h3>3.2 车体质心的位置与速度</h3>
+<p>设轮轴坐标为 \((s,0)\)（高度取轴心），车体质心：</p>
+<div class="eq-box">
+\[
+x_M = s + l\sin\theta,\qquad
+y_M = l\cos\theta
+\]
+</div>
+<p>对时间求导：</p>
+<div class="eq-box">
+\begin{aligned}
+\dot x_M &= \dot s + l\dot\theta\cos\theta,\\
+\dot y_M &= -l\dot\theta\sin\theta
+\end{aligned}
+\]
+</div>
+<p>再导一次可得加速度，供牛顿定律使用。小角度 \(\theta\approx 0\)：</p>
+<div class="eq-box">
+\[
+x_M\approx s+l\theta,\quad y_M\approx l,\quad
+\dot x_M\approx \dot s+l\dot\theta
+\]
+</div>
+
+<h3>3.3 轮子的平动 + 转动</h3>
+<p>
+每个轮既有质心（轴心）的平动速度 \(\dot s\)，又有绕轴自旋 \(\dot\varphi=\dot s/r\)。轮的动能因此含两项：
+</p>
+<div class="eq-box">
+\[
+T_w = \tfrac12 m_w\dot s^2 + \tfrac12 I_w\dot\varphi^2
+= \tfrac12 m_w\dot s^2 + \tfrac12\Bigl(\frac{I_w}{r^2}\Bigr)\dot s^2
+= \tfrac12\Bigl(m_w+\frac{I_w}{r^2}\Bigr)\dot s^2
+\]
+</div>
+<p>
+于是常把 \(m_{\mathrm{eff}}=m_w+I_w/r^2\) 叫作轮侧等效质量。两轮合计进模型里的 \(m\)。电机转子惯量同理折算。
+</p>
+
+<h3>3.4 差速与偏航（运动学层面）</h3>
+<p>轮距 \(d\)，左右轮速度 \(v_L,v_R\)：</p>
+<div class="eq-box">
+\[
+v=\frac{v_L+v_R}{2},\qquad
+\omega_{\mathrm{yaw}}=\frac{v_R-v_L}{d}
+\]
+</div>
+<p>
+纵向平衡 LQR 通常先在“直行平面模型”里设计（左右同力矩），偏航用额外差速环。本仓库阶段 5 明确：LQR 只换四项平衡增益，偏航差速保留——因为平面倒立摆模型根本不含航向状态。
+</p>
+</section>
+
+<!-- ===================== 4 ===================== -->
+<section id="dynamics">
+<h2>4. 动力学建模：从受力到方程</h2>
+
+<h3 id="fbd">4.1 自由体与相互作用</h3>
+<p>把系统拆成“车体”和“轮子（两轮合并）”时，界面上有：</p>
+<ul>
+  <li>电机力矩 \(\tau\)：对轮是驱动，对车体是反力矩 \(-\tau\)（牛顿第三定律）；</li>
+  <li>轴处水平力 \(H\)、竖直力 \(V\)：轮推车、车推轮，成对出现；</li>
+  <li>地面：法向 \(N\)、水平摩擦 \(f\)（提供加速整车的外力）。</li>
+</ul>
+<div class="fig">
+<pre class="ascii">
+   Mg↓          θ
+    ●───l───┐
+            │ 车体
+         τ反│
+    ←H→ ●━━● 轴
+         ↑V
+        轮子: τ驱动, f← 地面, N↑
+</pre>
+<p class="cap">相互作用力必须成对；漏画反力矩是倒立摆建模的经典坑。</p>
+</div>
+
+<h3 id="newton-euler">4.2 牛顿–欧拉推导（结构）</h3>
+<p>下面给出经典两轮倒立摆（车体 \(M,I\)，轮等效 \(m\)，质心高 \(l\)，轮半径 \(r\)）的方程结构，便于对照仿真脚本。</p>
+
+<h4>（1）轮子（平动 + 转动）</h4>
+<p>水平方向（两轮合计）：</p>
+<div class="eq-box">
+\[
+f - H = m\,\ddot s
+\]
+</div>
+<p>绕轮心转动（\(I_w\) 已并进等效，或显式写出）：</p>
+<div class="eq-box">
+\[
+\tau - f\, r = I_w\,\ddot\varphi = \frac{I_w}{r}\ddot s
+\]
+</div>
+<p>消去 \(f\) 后，轮侧把 \(\tau\) 与 \(H\)、\(\ddot s\) 链在一起。</p>
+
+<h4>（2）车体平动</h4>
+<div class="eq-box">
+\[
+H = M\,\ddot x_M = M(\ddot s + l\ddot\theta\cos\theta - l\dot\theta^2\sin\theta)
+\]
+</div>
+<p>竖直方向用于求 \(V\)，直立附近常不进入水平控制律。</p>
+
+<h4>（3）车体绕质心转动</h4>
+<div class="eq-box">
+\[
+I\ddot\theta = \tau_{\mathrm{重力相关}} + \tau_{\mathrm{轴力}} + (-\tau_{\mathrm{电机反力矩}})
+\]
+</div>
+<p>
+更具体地，重力力矩 \(Mgl\sin\theta\)，轴处力对质心的力矩含 \(H\cdot(l\cos\theta)\) 与 \(V\cdot(l\sin\theta)\) 等。整理后得到耦合的二阶系统：
+</p>
+<div class="eq-box">
+\[
+\mathbf{M}(\theta)\begin{bmatrix}\ddot s\\ \ddot\theta\end{bmatrix}
++ \mathbf{C}(\theta,\dot\theta)
++ \mathbf{G}(\theta)
+= \mathbf{F}\,\tau
+\]
+</div>
+<p>
+这是多刚体机器人学里的标准形：质量矩阵 \(\mathbf{M}\)、科氏/离心项 \(\mathbf{C}\)、重力项 \(\mathbf{G}\)、输入映射 \(\mathbf{F}\)。
+</p>
+
+<h3 id="lagrange">4.3 拉格朗日方法（更不容易漏力）</h3>
+<p>广义坐标取 \(q=(s,\theta)\)。动能：</p>
+<div class="eq-box">
+\[
+T = \underbrace{\tfrac12 M(\dot x_M^2+\dot y_M^2) + \tfrac12 I\dot\theta^2}_{\text{车体}}
++ \underbrace{\tfrac12 m_{\mathrm{eff}}\dot s^2}_{\text{轮}}
+\]
+</div>
+<p>势能：</p>
+<div class="eq-box">
+\[
+V = M g\, l\cos\theta
+\]
+</div>
+<p>拉格朗日函数 \(L=T-V\)，方程：</p>
+<div class="eq-box">
+\[
+\frac{\mathrm{d}}{\mathrm{d}t}\frac{\partial L}{\partial\dot q_i}-\frac{\partial L}{\partial q_i}=Q_i
+\]
+</div>
+<p>
+广义力 \(Q_s,Q_\theta\) 由虚功确定：电机力矩做功 \(\tau\,\delta\varphi=\tau\,\delta s/r\)（若 \(\tau\) 定义在轮轴），还要计入反力矩对 \(\theta\) 的虚功。不同教材对“\(\tau\) 作用在哪个广义坐标”约定不同——<strong>对照你的</strong> <code>lqr_gain_design.py</code> <strong>输入定义</strong>，不要混用“轮轴力矩”与“关节力矩”两套符号。
+</p>
+
+<h3 id="linear-model">4.4 直立附近的线性化动力学</h3>
+<p>
+在 \(\theta\approx 0,\dot\theta\approx 0\) 处线性化后，一般得到：
+</p>
+<div class="eq-box">
+\[
+\begin{bmatrix} m_{11} & m_{12}\\ m_{21} & m_{22}\end{bmatrix}
+\begin{bmatrix}\ddot s\\ \ddot\theta\end{bmatrix}
+=
+\begin{bmatrix} 0 & 0\\ 0 & Mgl\end{bmatrix}
+\begin{bmatrix}s\\ \theta\end{bmatrix}
++
+\begin{bmatrix} b_1\\ b_2\end{bmatrix}\tau
+\]
+</div>
+<p>
+（重力项只出现在 \(\theta\) 通道；\(s\) 本身是可自由漂移的积分器，开环对位置不恢复——这也是为什么要引入位置/速度反馈。）
+</p>
+<p>解出加速度仿射形式：</p>
+<div class="eq-box">
+\[
+\begin{bmatrix}\ddot s\\ \ddot\theta\end{bmatrix}
+=
+\mathbf{A}_{a}
+\begin{bmatrix}s\\ \theta\\ \dot s\\ \dot\theta\end{bmatrix}
++
+\mathbf{B}_{a}\,\tau
+\]
+</div>
+<p>更常见是先写成对 \((\ddot s,\ddot\theta)\) 的显式：</p>
+<div class="eq-box">
+\[
+\ddot\theta = a_{\theta\theta}\,\theta + b_{\theta}\,\tau,\quad
+\ddot s = a_{s\theta}\,\theta + b_{s}\,\tau
+\]
+</div>
+<p>
+（线性化后 \(\ddot\theta,\ddot s\) 不显式依赖 \(s,\dot s\)——摩擦忽略时；速度阻尼若建模会进入 \(\dot s\) 列。）
+</p>
+
+<div class="callout">
+  <p class="t">极简模型回顾</p>
+  <p style="margin:0">若取 \(m\to0,I\to0\) 且输入改用 \(\ddot s\) 而非 \(\tau\)，就退化到第 2 章的 \(l\ddot\theta=g\theta-\ddot s\)。完整模型只是把“谁产生 \(\ddot s\)”换成电机力矩与惯量耦合；LQR 的状态维数不变，仍是四态。</p>
+</div>
+
+<h3>4.5 一组可对照的符号线性化系数（常见教科书形）</h3>
+<p>
+许多资料把两轮合并后写成（直立线性化，忽略粘性摩擦）：
+</p>
+<div class="eq-box">
+\[
+\begin{aligned}
+(M+m)\ddot s + M l\ddot\theta &= \frac{\tau}{r}\\[0.4em]
+M l\ddot s + (I+Ml^2)\ddot\theta - Mgl\,\theta &= -\tau
+\end{aligned}
+\]
+</div>
+<p>
+第一式：整车水平动量，右侧是地面力通过 \(\tau/r\) 传来的有效水平力（理想纯滚动、把轮惯量并进 \(m\) 后的常见写法）。第二式：车体俯仰，重力项 \(-Mgl\theta\) 的符号取决于 \(\theta\) 定义与 \(\tau\) 反力矩进哪一侧——<strong>务必与你的仿真脚本逐项核对</strong>，不同作者差一个总号。
+</p>
+<p>写成矩阵：</p>
+<div class="eq-box">
+\[
+\begin{bmatrix}
+M+m & Ml \\
+Ml & I+Ml^2
+\end{bmatrix}
+\begin{bmatrix}\ddot s\\ \ddot\theta\end{bmatrix}
+=
+\begin{bmatrix}
+0\\ Mgl
+\end{bmatrix}\theta
++
+\begin{bmatrix}
+1/r\\ -1
+\end{bmatrix}\tau
+\]
+</div>
+<p>
+令质量矩阵为 \(\mathbf{M}_q\)，则
+</p>
+<div class="eq-box">
+\[
+\begin{bmatrix}\ddot s\\ \ddot\theta\end{bmatrix}
+=
+\mathbf{M}_q^{-1}
+\left(
+\begin{bmatrix}0\\ Mgl\end{bmatrix}\theta
++
+\begin{bmatrix}1/r\\ -1\end{bmatrix}\tau
+\right)
+\]
+</div>
+<p>
+\(\mathbf{M}_q^{-1}\) 存在当 \(\det\mathbf{M}_q=(M+m)(I+Ml^2)-(Ml)^2>0\)，物理上总成立。由此读出 \(\ddot\theta\) 对 \(\theta\) 的开环系数（应导致不稳定）以及 \(\ddot\theta,\ddot s\) 对 \(\tau\) 的输入系数。
+</p>
+
+<h3>4.6 从二阶式到一阶状态方程</h3>
+<p>选状态（与本仓库一致）：
+</p>
+<div class="eq-box">
+\[
+\mathbf{x}=\begin{bmatrix}\theta\\ \dot\theta\\ s\\ \dot s\end{bmatrix}
+\quad\text{或有的脚本用}\quad
+\begin{bmatrix}s\\ \theta\\ \dot s\\ \dot\theta\end{bmatrix}
+\]
+</div>
+<div class="callout warn">
+  <p class="t">状态顺序必须与 \(K\) 向量对齐</p>
+  <p style="margin:0">固件填的是 \(k_\theta,k_{\dot\theta},k_s,k_{\dot s}\)。仿真脚本若输出 \(K=[k_s,k_\theta,\ldots]\)，移植时要重排，否则相当于把位置增益打到角度通道——车会直接炸。</p>
+</div>
+<p>由 \(\dot{\mathbf{x}}=\mathbf{A}x+\mathbf{B}u\)，\(u=\tau\)：</p>
+<div class="eq-box">
+\[
+\dot{\mathbf{x}}
+=
+\begin{bmatrix}
+0 & 1 & 0 & 0\\
+a_{21} & 0 & 0 & 0\\
+0 & 0 & 0 & 1\\
+a_{41} & 0 & 0 & 0
+\end{bmatrix}
+\mathbf{x}
++
+\begin{bmatrix}
+0\\ b_2\\ 0\\ b_4
+\end{bmatrix}u
+\]
+</div>
+<p>
+其中 \(a_{21}>0\) 来自重力不稳定项（倒立摆特征）；\(b_2,b_4\) 来自力矩如何耦合进角加速与线加速。精确表达式依赖 \(M,m,l,I,r\)。
+</p>
+
+<h3>4.7 能量与可控性的交叉直觉</h3>
+<p>
+直立是势能极大。控制要做的事，本质是通过轮子做功/换动量，把系统从势能“山顶”附近的发散轨迹，赶进一个耗散的闭环盆地。LQR 的 \(R\) 限制你做功的“花钱速度”；\(Q\) 规定盆地的形状。能量图景不给出 \(K\) 的数值，但能防止你设计出“又省力矩又要瞬时扶正”的自相矛盾权重。
+</p>
+</section>
+
+<!-- ===================== 5 ===================== -->
+<section id="state">
+<h2>5. 状态方程与可控性直觉</h2>
+
+<h3>5.1 什么是“状态”</h3>
+<p>
+状态是“为了预测未来，现在必须知道的最小信息集”。对理想无摩擦轮式倒立摆，知道 \((\theta,\dot\theta,s,\dot s)\) 就够了；电流环若很慢，有时还要把电机电流当额外状态——那是执行器增广，阶段 5 若电流环带宽远高于 200 Hz 平衡环，可当代数关系 \(I=\tau/K_t\) 处理。
+</p>
+
+<h3>5.2 线性状态空间标准形</h3>
+<div class="eq-box">
+\[
+\dot{\mathbf{x}}=\mathbf{A}x+\mathbf{B}u,\qquad
+y=\mathbf{C}x+\mathbf{D}u
+\]
+</div>
+<p>
+LQR 全状态反馈假设 \(x\) 可测（或已由观测器估计）。本车：\(\theta,\dot\theta\) 来自 IMU/AHRS，\(s,\dot s\) 来自编码器积分/差分。\(\mathbf{D}\) 通常为 0。
+</p>
+
+<h3>5.3 开环极点</h3>
+<p>
+\(\mathbf{A}\) 的特征值 = 开环极点。倒立摆必有<strong>右半平面极点</strong>（不稳定）。还有接近原点的积分器（位置），对应“车会慢慢滑走”。
+</p>
+
+<h3>5.4 可控性</h3>
+<p>可控性矩阵：</p>
+<div class="eq-box">
+\[
+\mathcal{C}=\big[\mathbf{B}\ \ \mathbf{A}B\ \ \mathbf{A}^2B\ \ \mathbf{A}^3B\big]
+\]
+</div>
+<p>
+\(\mathrm{rank}(\mathcal{C})=4\) 则可从任意初态驾到任意终态（线性系统、无约束时）。两轮倒立摆在标准参数下通常完全可控——这是“一个标量力矩就能同时管平衡和位移”的数学保证。若错误建模导致不可控，先查符号/自由度，不要先怪 LQR 求解器。
+</p>
+<p>
+离散 4 步直觉：\(x_4=A_d^4 x_0+A_d^3 B_d u_0+\cdots+B_d u_3\)；早施加的 \(u\) 被 \(A_d\) 传得更多。可控性矩阵的列就是这些方向。详解见 <a href="./lqr_study_qa.html#y-ctrl">问答归档 §3</a>。
+注意：输出方程里的 \(C\) 与可控性矩阵 \(\mathcal{C}\) 不是同一个矩阵。
+</p>
+
+<h3>5.5 状态反馈通式</h3>
+<div class="eq-box">
+\[
+u = -Kx + u_{\mathrm{ff}}(r)
+\]
+</div>
+<p>
+\(K\) 把四维状态压成一个力矩；\(u_{\mathrm{ff}}\) 或参考成形（如速度→倾角前馈 <code>kff</code>、软停 <code>vref_smooth</code>）处理“想去哪”，反馈处理“偏差”。LQR 负责最优的 \(K\)，不自动消灭你结构上缺少的前馈。
+</p>
+</section>
+
+<!-- ===================== 6 ===================== -->
+<section id="quad">
+<h2>6. 二次型：LQR 在优化什么</h2>
+
+<h3>6.1 标量二次代价的直觉</h3>
+<p>
+若只有一个误差 \(e\)，“既不想误差大，又不想控制猛”可以写成：
+</p>
+<div class="eq-box">
+\[
+J=\int_0^\infty \big( q\, e(t)^2 + r\, u(t)^2\big)\,\mathrm{d}t
+\]
+</div>
+<ul>
+  <li>\(q\) 大：更不能容忍误差 → 反馈更凶；</li>
+  <li>\(r\) 大：更不能容忍用力 → 反馈更怂。</li>
+</ul>
+
+<h3>6.2 向量情形：二次型 \(\mathbf{x}^\top Qx\)</h3>
+<p>
+对称矩阵 \(\mathbf{Q}\succeq 0\)（半正定）定义了状态惩罚：
+</p>
+<div class="eq-box">
+\[
+\mathbf{x}^\top Qx
+=
+\begin{bmatrix}\theta&\dot\theta&s&\dot s\end{bmatrix}
+\begin{bmatrix}
+q_{\theta}&0&0&0\\
+0&q_{\dot\theta}&0&0\\
+0&0&q_s&0\\
+0&0&0&q_{\dot s}
+\end{bmatrix}
+\begin{bmatrix}\theta\\ \dot\theta\\ s\\ \dot s\end{bmatrix}
+=
+q_{\theta}\theta^2+q_{\dot\theta}\dot\theta^2+q_s s^2+q_{\dot s}\dot s^2
+\]
+</div>
+<p>
+对角 \(\mathbf{Q}\) 最常见：每个状态独立加权。非对角元表示“交叉惩罚”（较少手调）。
+</p>
+<p>输入惩罚（单输入）：</p>
+<div class="eq-box">
+\[
+u^\top Ru = R\,\tau^2,\quad R>0
+\]
+</div>
+
+<h3>6.3 无穷时域目标泛函</h3>
+<div class="eq-box">
+\[
+J=\int_0^\infty \big(\mathbf{x}^\top Qx + u^\top Ru\big)\,\mathrm{d}t
+\]
+</div>
+<p>
+在线性约束 \(\dot x=Ax+Bu\) 下，使 \(J\) 最小的控制，对任意初值都具有形式 \(u=-Kx\)（这是 LQR 最惊人的结论之一：最优解恰好是线性状态反馈）。
+</p>
+
+<h3>6.4 二次型的几何图像</h3>
+<p>
+\(\mathbf{x}^\top Qx=c\) 在状态空间里是椭球（\(\mathbf{Q}\) 正定）。LQR 在说：沿着系统轨迹，让“椭球意义下的状态大小”与“控制能量”的积分最小。调 \(q_\theta\) 相对 \(q_s\)，就是在说“椭圆在 \(\theta\) 方向更扁还是在 \(s\) 方向更扁”——更不能容忍哪一维误差。
+</p>
+
+<h3>6.5 二次型的代数性质（值得记住的三点）</h3>
+<ol>
+  <li><strong>对称性</strong>：任意方阵 \(Q\) 可换成 \(\frac{1}{2}(Q+Q^\top)\) 而不改二次型值，故 LQR 总取对称 \(\mathbf{Q}\)。</li>
+  <li><strong>正定性</strong>：\(\mathbf{Q}\succ 0\) ⇔ 所有特征值 \(>0\) ⇔ \(x\neq 0\Rightarrow x^\top Qx>0\)。半正定允许某些方向“不罚”（例如有人令 \(q_s=0\) 只做平衡不做定点）。</li>
+  <li><strong>配平方与完成方块</strong>：标量情形 \(qe^2+ru^2\) 在最优 \(u^\star=-\frac{b}{r}pe\) 附近可以配方，看出“反馈把交叉项消掉只剩完美平方”——向量版就是 Riccati 完成的工作。</li>
+</ol>
+
+<h3>6.6 Bryson 规则（把物理量纲变成权重）</h3>
+<p>
+若你愿意接受的最大状态分量为 \(\bar x_i\)、最大输入为 \(\bar u\)，取
+</p>
+<div class="eq-box">
+\[
+Q_{ii}\approx\frac{1}{\bar x_i^2},\qquad
+R\approx\frac{1}{\bar u^2}
+\]
+</div>
+<p>
+则当状态顶到你能接受的边界时，贡献约 1；输入顶到边界时贡献约 1。这只是起点，随后靠仿真/实车 A/B 微调。对本车举例：\(\bar\theta=5^\circ\approx0.087\,\mathrm{rad}\)，\(\bar\tau=0.15\,\mathrm{N·m}\)，则 \(q_\theta\sim 1/(0.087)^2\approx 130\)，\(R\sim 1/(0.15)^2\approx 44\)（数量级演示，非推荐定值）。
+</p>
+
+<h3>6.7 与手调增益的联系</h3>
+<p>
+手调 \(k_\theta\) 大 ≈ 更狠狠惩罚 \(\theta\)（或等价地更愿意为扶正花钱）。但 LQR 的四个增益<strong>耦合在一起</strong>由 Riccati 解出，不能指望只改 \(q_\theta\) 只动 \(k_\theta\)——其它通道也会变。这是“最优”的代价：全局协调，局部不直观。
+</p>
+</section>
+
+<!-- ===================== 7 ===================== -->
+<section id="lqr">
+<h2>7. LQR 基础：从代价到增益矩阵</h2>
+
+<h3>7.1 问题陈述</h3>
+<p>系统：</p>
+<div class="eq-box">
+\[
+\dot{\mathbf{x}}=\mathbf{A}x+\mathbf{B}u
+\]
+</div>
+<p>代价：</p>
+<div class="eq-box">
+\[
+J=\int_0^\infty\big(x^\top Qx+u^\top Ru\big)\,\mathrm{d}t
+\]
+</div>
+<p>假设 \((\mathbf{A},\mathbf{B})\) 可控（或可稳），\((\mathbf{A},\mathbf{Q}^{1/2})\) 可观（或可检），则存在唯一正定（半正定）解支撑最优反馈。</p>
+
+<h3>7.2 最优控制律</h3>
+<div class="eq-box">
+\[
+u^\star = -R^{-1}B^\top P\, x = -Kx,\qquad
+K=R^{-1}B^\top P
+\]
+</div>
+<p>
+\(\mathbf{P}\) 是代价的“存储函数”：最优代价恰为 \(J^\star=x(0)^\top Px(0)\)。\(\mathbf{P}\) 越大的方向，说明从该状态回到 0 更“贵”。
+</p>
+
+<h3 id="u-star">7.2.1 \(u^\star\) 全推导：贝尔曼 → HJB → LQR</h3>
+<p>
+下面按「最优控制通论 → 特化到 LQR」写全。缺贝尔曼/HJB，就只会背公式；有了它们，才知道 \(u^\star=-Kx\) 从哪来、\(P\) 为什么满足 CARE。
+</p>
+
+<h4>（0）最优控制在问什么</h4>
+<p>
+给定动力学 \(\dot x=f(x,u)\) 与积分代价
+</p>
+<div class="eq-box">
+\[
+J(x_0;u(\cdot))=\int_0^{T}\ell(x(t),u(t))\,\mathrm{d}t + \Phi(x(T))
+\]
+</div>
+<p>
+（无穷时域常取 \(T\to\infty\)、\(\Phi=0\)，且要求闭环使积分收敛。）目标是找输入轨迹 \(u(\cdot)\) 使 \(J\) 最小。LQR 是特例：\(f=Ax+Bu\)，\(\ell=x^\top Qx+u^\top Ru\)，\(T=\infty\)。
+</p>
+
+<h4>（1）值函数（代价-to-go）</h4>
+<p>
+从状态 \(x\)、时刻 \(t\) 出发，在剩余时间内能取得的<strong>最优代价</strong>叫<strong>值函数</strong>（value function / cost-to-go）：
+</p>
+<div class="eq-box">
+\[
+V(t,x)=\min_{u(\cdot)}\left[
+\int_t^{T}\ell(x(\tau),u(\tau))\,\mathrm{d}\tau+\Phi(x(T))
+\right]
+\]
+</div>
+<p>
+无穷时域、时不变问题时 \(V\) 不显含 \(t\)，写成 \(V(x)\)。LQR 的结果是 \(V(x)=x^\top Px\)，且 \(J^\star=V(x(0))=x(0)^\top Px(0)\)。
+</p>
+
+<h4>（2）贝尔曼最优性原理（Bellman）</h4>
+<p>
+<strong>表述：</strong>最优策略具有这样的性质——无论过去如何到达当前状态，从今往后的决策必须仍是最优的。
+</p>
+<p>
+推论（动态规划思想）：最优轨迹拆成「当前一小段」+「从下一状态再最优走完」。因此值函数满足递推，而不是一次性对整条 \(u(t)\) 做无穷维优化。
+</p>
+<div class="callout">
+  <p class="t">为什么重要</p>
+  <p style="margin:0">把「整条输入轨迹」的优化，变成「当前状态选一个 \(u\)」的嵌套最小化。这正是后面 HJB 里出现 \(\min_u\{\ldots\}\) 的原因，也是最优解往往可写成<strong>状态反馈</strong> \(u=\kappa(x)\) 的根源。</p>
+</div>
+
+<h4>（3）离散动态规划（把原理写成公式）</h4>
+<p>
+时间离散、步长 \(\Delta t\)。阶段代价约 \(\ell(x,u)\Delta t\)。贝尔曼方程：
+</p>
+<div class="eq-box">
+\[
+V(t,x)=\min_u\Big[
+\ell(x,u)\Delta t + V\big(t+\Delta t,\; x+f(x,u)\Delta t\big)
+\Big]
+\]
+</div>
+<p>
+读法：当前付一点代价，状态走到 \(x^+\)，之后按最优值函数付清余下账单；选使总和最小的 \(u\)。
+</p>
+
+<h4>（4）连续极限 → HJB 方程</h4>
+<p id="taylor">
+对 \(V(x+\dot x\,\mathrm{d}t)\)（时不变时不写 \(t\)）做<strong>多元一阶泰勒</strong>。一维熟式：\(V(x+\Delta x)\approx V+V'\Delta x\)。向量状态时梯度点乘位移：
+</p>
+<div class="eq-box">
+\[
+V(x+\Delta x)\approx V(x)+\Big(\frac{\partial V}{\partial x}\Big)^\top\Delta x
+\]
+</div>
+<p>
+\(\partial V/\partial x=\nabla V\) 是<strong>列</strong>向量，转置后与 \(\Delta x\) 点乘才是标量。本步 \(\Delta x=\dot x\,\mathrm{d}t\)（一小段时间里状态按动力学走），故
+</p>
+<div class="eq-box">
+\[
+V(x+\dot x\,\mathrm{d}t)
+\approx V(x)+\Big(\frac{\partial V}{\partial x}\Big)^\top\dot x\,\mathrm{d}t
+\]
+</div>
+<p>
+高阶 \(O(|\Delta x|^2)=O(\mathrm{d}t^2)\)，除以 \(\mathrm{d}t\) 再 \(\mathrm{d}t\to0\) 后丢掉。读法：\((\partial V/\partial x)^\top\dot x\) 就是 \(V\) 沿轨迹的瞬时变化率。
+若 \(V\) 还显含 \(t\)，再加 \(V_t\mathrm{d}t\)：
+</p>
+<div class="eq-box">
+\[
+V(t+\Delta t,x+f\Delta t)
+\approx V + V_t\Delta t + (\nabla_x V)^\top f\,\Delta t
+\]
+</div>
+<p>
+代入贝尔曼式，减去 \(V\)，除以 \(\Delta t\)，令 \(\Delta t\to 0\)，得到 <strong>Hamilton–Jacobi–Bellman（HJB）</strong>：
+</p>
+<div class="eq-box">
+\[
+0 = V_t + \min_u\Big[
+\ell(x,u) + (\nabla_x V)^\top f(x,u)
+\Big]
+\]
+</div>
+<p>
+无穷时域时不变：\(V_t=0\)，故
+</p>
+<div class="eq-box">
+\[
+0=\min_u\Big[
+\ell(x,u) + (\nabla V)^\top f(x,u)
+\Big]
+\]
+</div>
+<p>
+括号里常记为哈密顿量形式 \(H(x,u,\nabla V)=\ell+(\nabla V)^\top f\)；HJB 说「最优时 \(\min_u H=0\)」（无穷时域、适当归一下）。
+</p>
+<p>
+<strong>与庞特里亚金极小值原理的关系（面试加分）：</strong> 二者在光滑情形下密切相关。庞特里亚金引入协态 \(\lambda\)，要求 \(u\) 逐点极小化哈密顿量；HJB 的 \(\nabla V\) 在最优轨迹上扮演 \(\lambda\) 的角色。工程算 LQR 增益用 Riccati/HJB 特化即可，不必每次写两点边值。
+</p>
+
+<h4>（5）特化到 LQR</h4>
+<p>
+令 \(f=Ax+Bu\)，\(\ell=x^\top Qx+u^\top Ru\)。对线性–二次问题，值函数<strong>仍是二次型</strong>（二次型在 LQ 贝尔曼递推下封闭）：
+若 \(V_{k+1}(z)=z^\top Pz\) 且 \(z=Ax+Bu\)，则 \(V_{k+1}(Ax+Bu)\) 对 \((x,u)\) 仍是二次；\(\min_u\) 后代回 \(V_k(x)=x^\top P_k x\)。
+动力学非线性时 \(V(f(x,u))\) 一般不再二次，真实 \(V(x)\) 无闭式，LQR 只是工作点附近的局部二次近似。
+</p>
+<div class="eq-box">
+\[
+V(x)=x^\top Px,\qquad P=P^\top\succeq 0
+\quad\Rightarrow\quad
+\nabla V=\frac{\partial V}{\partial x}=2Px,\quad
+\Big(\frac{\partial V}{\partial x}\Big)^\top=2x^\top P
+\]
+</div>
+<p>
+\(P\) 必可取对称：二次型只依赖 \((P+P^\top)/2\)；CARE 在 \(Q\) 对称时解也对称。因此 \((\partial V/\partial x)^\top\dot x=2x^\top P(Ax+Bu)\)。
+</p>
+<p>
+代入 HJB：
+</p>
+<div class="eq-box">
+\[
+0=\min_u\Big[
+x^\top Qx+u^\top Ru + 2x^\top P(Ax+Bu)
+\Big]
+\]
+</div>
+
+<h4 id="matderiv">（6）对 \(u\) 求最小 → \(u^\star\)（含矩阵求导）</h4>
+<p>
+与 \(u\) 有关的部分：\(u^\top Ru+2x^\top PBu\)。固定 \(x\)，对 \(u\) 求最小。
+</p>
+<p>
+<strong>\(u^\top Ru\to 2Ru\)</strong>（\(R=R^\top\)）：\(u^\top Ru=\sum_{i,j}u_i R_{ij}u_j\)，对 \(u_k\) 求导会碰到「左边一次 + 右边一次」，得 \((R+R^\top)u\)；对称时即 \(2Ru\)。
+</p>
+<p>
+<strong>\(2x^\top PBu\to 2B^\top Px\)</strong>：标量 \(x^\top PBu=(x^\top PBu)^\top=u^\top B^\top P^\top x\)。\(P=P^\top\) 时等于 \(u^\top B^\top Px=(B^\top Px)^\top u\)。标准式 \(\partial(a^\top u)/\partial u=a\)，故导数为 \(2B^\top Px\)。转置不是乱加的，来自 \((PB)^\top=B^\top P\)。
+</p>
+<div class="eq-box">
+\[
+\frac{\partial}{\partial u}(u^\top Ru+2x^\top PBu)=2Ru+2B^\top Px=0
+\quad\Rightarrow\quad
+\boxed{\;u^\star=-R^{-1}B^\top Px=-Kx\;}
+\]
+</div>
+<p>
+二阶导 \(2R\succ 0\)，故确为极小。于是最优控制<strong>必然是线性状态反馈</strong>——来自「二次 \(\ell\) + 线性 \(f\) + 二次 \(V\)」的结构，不是额外假设。
+</p>
+
+<h4>（7）代回 HJB → CARE（\(P\) 从哪来）</h4>
+<p>
+把 \(u^\star\) 代回，并用 \(2x^\top PAx=x^\top(A^\top P+PA)x\)、以及
+\(u^{\star\top}Ru^\star+2x^\top PBu^\star=-x^\top PBR^{-1}B^\top Px\)，整理得连续代数 Riccati 方程：
+</p>
+<div class="eq-box">
+\[
+A^\top P+PA-PBR^{-1}B^\top P+Q=0
+\]
+</div>
+<p>
+流程：先解 CARE 得 \(P\)，再 \(K=R^{-1}B^\top P\)。数值用库函数，不手解。
+</p>
+
+<h4>（8）配平方视角（同一 \(u^\star\)，帮助记忆）</h4>
+<p>
+在 \(P\) 已满足 CARE 时，可把运行代价配成：
+</p>
+<div class="eq-box">
+\[
+x^\top Qx+u^\top Ru
+=\big(u+R^{-1}B^\top Px\big)^\top R\big(u+R^{-1}B^\top Px\big)
++\frac{\mathrm{d}}{\mathrm{d}t}(x^\top Px)
+\]
+</div>
+<p>
+（精确写法依赖 CARE 把交叉项消掉。）第一项 \(\ge 0\)，当且仅当 \(u=-R^{-1}B^\top Px\) 时为 0；积分后最优代价恰为 \(x(0)^\top Px(0)\)。配平方直接「看见」最优输入形式。
+</p>
+
+<h4>（9）离散 LQR（固件真正用的）</h4>
+<p>
+\(x_{k+1}=A_d x_k+B_d u_k\)，\(J=\sum_k(x_k^\top Qx_k+u_k^\top Ru_k)\)。贝尔曼：
+</p>
+<div class="eq-box">
+\[
+V(x_k)=\min_{u_k}\Big[
+x_k^\top Qx_k+u_k^\top Ru_k+V(A_d x_k+B_d u_k)
+\Big]
+\]
+</div>
+<p>
+仍取 \(V(x)=x^\top Px\)，对 \(u_k\) 求导得：
+</p>
+<div class="eq-box">
+\[
+u_k^\star=-(R+B_d^\top P B_d)^{-1}B_d^\top P A_d\,x_k
+\]
+</div>
+<p>
+比连续多 \(B_d^\top PB_d\)：本拍 \(u\) 立刻改变下一状态，从而改变下一拍存储代价。\(P\) 满足 DARE。阶段 5：ZOH 离散 + DARE，\(dt\) 与固件一致。
+</p>
+
+<h4>（10）概念清单（自检）</h4>
+<table>
+  <tr><th>概念</th><th>一句话</th></tr>
+  <tr><td>值函数 \(V\)</td><td>从当前状态出发的最优剩余代价</td></tr>
+  <tr><td>贝尔曼原理</td><td>最优策略的「尾部」仍最优 → 可递推</td></tr>
+  <tr><td>动态规划</td><td>用贝尔曼方程自后向前（或稳态）算 \(V\) 与策略</td></tr>
+  <tr><td>HJB</td><td>连续时间下的贝尔曼 PDE：\(0=\min_u[\ell+(\nabla V)^\top f]\)</td></tr>
+  <tr><td>\(u^\star=-R^{-1}B^\top Px\)</td><td>LQR 下对 HJB 中 \(u\) 求最小的闭式解</td></tr>
+  <tr><td>CARE/DARE</td><td>把 \(u^\star\) 代回后定 \(P\) 的代数方程</td></tr>
+  <tr><td>线性反馈</td><td>LQ 结构的推论，不是另加的控制器类型</td></tr>
+</table>
+
+<h3 id="riccati">7.3 连续代数 Riccati 方程（CARE）</h3>
+<p>\(\mathbf{P}\) 满足：</p>
+<div class="eq-box">
+\[
+\mathbf{A}^\top P + P A - P B R^{-1}B^\top P + Q = 0
+\]
+</div>
+<p>四项读法（帮助记忆，不是严格变分推导）：</p>
+<ol>
+  <li>\(\mathbf{A}^\top P+PA\)：状态按开环 \(\mathbf{A}\) 漂移时，代价储函数的变化；</li>
+  <li>\(-PBR^{-1}B^\top P\)：最优反馈能“省下”的那部分；</li>
+  <li>\(+Q\)：持续的状态惩罚；</li>
+  <li>平衡时总变化率为 0 → 代数方程。</li>
+</ol>
+<p>
+数值上用 <code>scipy.linalg.solve_continuous_are</code> 等求解，不要手解 4×4。
+</p>
+
+<h3>7.3.1 动态规划直觉（离散一拍）</h3>
+<p>
+设终端代价 \(x_N^\top P_N x_N\)。从最后一拍往前：在状态 \(x_k\) 选 \(u_k\) 使下式最小
+</p>
+<div class="eq-box">
+\[
+x_k^\top Q x_k + u_k^\top R u_k + x_{k+1}^\top P_{k+1}x_{k+1}
+\]
+</div>
+<p>
+其中 \(x_{k+1}=A_d x_k+B_d u_k\)。对 \(u_k\) 求导令零，得到线性反馈；把最优代价再写成 \(x_k^\top P_k x_k\)，得到 \(P_k\) 的递推。\(N\to\infty\) 且稳定时 \(P_k\to P\)，即 DARE。LQR“永远是线性反馈”不是假设，是二次代价 + 线性动力学配出来的结果。
+</p>
+
+<h3>7.3.2 哈密顿矩阵一瞥（连续）</h3>
+<p>
+把状态与协态拼成 \(2n\) 维，最优性条件导出线性哈密顿系统；稳定流形对应 CARE 的 \(\mathbf{P}\)。工程上不必手算，但要知道：Riccati 解与两点边值/哈密顿稳定子空间是同一件事的不同面孔。
+</p>
+
+<h3 id="closedloop">7.4 闭环性质</h3>
+<div class="eq-box">
+\[
+\dot x=(\mathbf{A}-BK)x
+\]
+</div>
+<p>
+\(u=-Kx\) 代回开环 \(\dot x=Ax+Bu\) 即得上式。连续系统<strong>渐近稳定</strong>要求 \(A-BK\) 全部特征值满足 \(\mathrm{Re}(\lambda)<0\)，<strong>不要求</strong>一定是复数：负实根（过阻尼、不振荡）也可以稳定；共轭复根且实部为负则边晃边衰减。开环倒立摆 \(A\) 常有正实部极点；LQR 在假设满足时保证闭环实部全为负。
+</p>
+<ul>
+  <li>闭环必渐近稳定（在前述假设下）；</li>
+  <li>有增益裕度、相位裕度方面的经典保证（LTR/LQR 鲁棒性叙事）；但对<strong>模型误差、饱和、延迟</strong>仍会脆弱——实车必须靠标定与限幅。</li>
+  <li>不像极点配置那样直接指定 \(\omega_n,\zeta\)，而是通过 \(\mathbf{Q},R\) 间接塑造闭环模态。</li>
+</ul>
+
+<h3 id="discrete">7.5 离散时间 LQR（实车真正该用的）</h3>
+<p>
+固件以周期 \(\Delta t\) 采样保持（ZOH）：在 \([k\Delta t,(k+1)\Delta t)\) 内 \(u(t)\) 为常数。连续系统离散化为：
+</p>
+<div class="eq-box">
+\[
+x_{k+1}=\mathbf{A}_d x_k+\mathbf{B}_d u_k
+\]
+</div>
+<p>其中（ZOH）：</p>
+<div class="eq-box">
+\[
+\mathbf{A}_d=e^{A\Delta t},\qquad
+\mathbf{B}_d=\int_0^{\Delta t}e^{A\tau}\,\mathrm{d}\tau\, B
+\]
+</div>
+<p>离散代价：</p>
+<div class="eq-box">
+\[
+J=\sum_{k=0}^\infty\big(x_k^\top Q_d x_k+u_k^\top R_d u_k\big)
+\]
+</div>
+<p>离散代数 Riccati（DARE）：</p>
+<div class="eq-box">
+\[
+\mathbf{P}=\mathbf{A}_d^\top P A_d-\mathbf{A}_d^\top P B_d(R_d+B_d^\top P B_d)^{-1}B_d^\top P A_d+Q_d
+\]
+</div>
+<p>增益：</p>
+<div class="eq-box">
+\[
+K=(R_d+B_d^\top P B_d)^{-1}B_d^\top P A_d,\qquad
+u_k=-K x_k
+\]
+</div>
+<div class="callout warn">
+  <p class="t">本仓库硬约束</p>
+  <p style="margin:0">阶段 5 要求：<code>cont2discrete</code> ZOH + <code>solve_discrete_are</code>；\(\Delta t=1/200=0.005\,\mathrm{s}\) 必须与 <code>cfg::kCtrlDt</code> 一致。改控制频率必须重算 \(K\)。连续 LQR 再“近似当离散用”只适合预习，不适合写进固件。</p>
+</div>
+
+<h3 id="scipy-k">7.5.1 用 SciPy 解 DARE，把 \(K\) 填进固件</h3>
+<p>
+Eigen / 标准 C++ <strong>没有</strong>现成 CARE/DARE。本项目做法：PC 上 Python 离线解，固件只填常数。ESP32 控制环<strong>不解</strong> Riccati。
+</p>
+<pre>
+from scipy.signal import cont2discrete
+from scipy.linalg import solve_discrete_are, inv
+
+Ad, Bd, *_ = cont2discrete((A, B, None, 0), dt=0.005, method="zoh")
+P = solve_discrete_are(Ad, Bd, Q, R)
+K = inv(R + Bd.T @ P @ Bd) @ (Bd.T @ P @ Ad)  # 对应脚本状态顺序
+# 固件 u = Σ k_i (x_i - xref_i) 且 k&gt;0 → 填 -K 各分量（再按固件顺序重排）
+</pre>
+<p>
+填表前检查：\(u\) 为 N·m；\(dt\) 一致；状态顺序对齐；执行器是力矩接口；<code>kff</code>/软停/偏航保留。量纲统一后 \(-K[0]\) 应与手调 \(k_\theta\)（换到力矩）同量级。
+</p>
+
+<h3>7.6 \(\mathbf{Q},R\) 怎么选（工程启发式）</h3>
+<table>
+  <tr><th>旋钮</th><th>变大时的典型现象</th></tr>
+  <tr><td>\(q_\theta\)</td><td>扶正更积极，力矩更大，可能更抖</td></tr>
+  <tr><td>\(q_{\dot\theta}\)</td><td>俯仰阻尼增加，抑制来回晃</td></tr>
+  <tr><td>\(q_s\)</td><td>更想钉在原点，抗漂移；过大与速度环抢、易激振</td></tr>
+  <tr><td>\(q_{\dot s}\)</td><td>速度跟踪/抑漂更紧</td></tr>
+  <tr><td>\(R\)</td><td>更省力矩，响应变慢，饱和更少</td></tr>
+</table>
+<p>
+实用流程：先用 Bryson 规则做数量级——若 \(\theta_{\max}\approx 0.05\,\mathrm{rad}\)，取 \(q_\theta\sim 1/\theta_{\max}^2\)；若 \(\tau_{\max}\approx 0.2\,\mathrm{N·m}\)，取 \(R\sim 1/\tau_{\max}^2\)；再对照手调基线做 A/B。量纲统一到 N·m 后，\(-K[0]\) 应与手调 \(k_\theta\)（换算到力矩）同量级。
+</p>
+
+<h3>7.7 参考跟踪：不是另写一套 LQR</h3>
+<p>
+调节问题默认把状态赶到 0。要走速、定点，用：
+</p>
+<div class="eq-box">
+\[
+u=-K(x-x_{\mathrm{ref}})+u_{\mathrm{ff}}
+\]
+</div>
+<p>
+或只对误差状态做 LQR。本车：<code>vref</code>、<code>pos_ref</code>、<code>kff</code>（速度→倾角）属于参考成形；反馈增益表可换成 \(-K_{\mathrm{LQR}}\)。
+</p>
+</section>
+
+<!-- ===================== 8 ===================== -->
+<section id="design">
+<h2>8. 设计闭环：从参数到实车 \(K\)</h2>
+
+<div class="fig">
+<pre class="ascii">
+ 称重测 M,m,l,r,I ──▶ 建 A,B（连续）
+                           │
+                           ▼
+                    ZOH 离散化 Ad,Bd   ◀── dt=0.005s
+                           │
+                           ▼
+                    选 Q,R ──▶ DARE ──▶ K
+                           │
+                           ▼
+              固件 u = -K(x-xref) + uff
+                           │
+                           ▼
+              执行器：τ_ref → 电流环/电压前馈 → 电机
+</pre>
+</div>
+
+<h3>8.1 模型参数从哪来</h3>
+<table>
+  <tr><th>参数</th><th>含义</th><th>备注</th></tr>
+  <tr><td>\(M\)</td><td>车体（去轮、留电机）</td><td>见 <code>stage5_physical_params_table.md</code></td></tr>
+  <tr><td>\(m\)</td><td>轮侧等效</td><td>起步可用两轮质量；转子可选</td></tr>
+  <tr><td>\(l\)</td><td>车体质心→轮轴</td><td>对 \(\lambda=\sqrt{g/l}\) 极敏感</td></tr>
+  <tr><td>\(r\)</td><td>轮半径</td><td>影响 \(s=r\varphi\) 与力矩臂</td></tr>
+  <tr><td>\(I\)</td><td>车体绕质心惯量</td><td>可先近似</td></tr>
+</table>
+
+<h3>8.2 为什么执行器必须是力矩</h3>
+<p>
+\(\mathbf{B}\) 列的物理含义是“力矩如何进加速度”。若固件输出仍是占空比 %，而 \(K\) 按 N·m 设计，等于把 \(\mathbf{B}\) 乘错了标度——闭环极点全错。阶段 5 才强调电流环 \(\tau=K_t I\) 或电压前馈标定，原因在此。
+</p>
+
+<h3>8.3 非线性、饱和与未建模动态</h3>
+<ul>
+  <li>电机死区、库仑摩擦：线性 LQR 不含，需补偿或靠反馈硬扛；</li>
+  <li>PWM 饱和：最优性在约束外失效，应限幅 + 抗饱和（位置积分已有）；</li>
+  <li>电池内阻：有效力矩随电量变；</li>
+  <li>地面坡度：进入等效扰动，阶段 6 再估坡。</li>
+</ul>
+</section>
+
+<!-- ===================== 9 ===================== -->
+<section id="firmware">
+<h2>9. 与本车固件 / 阶段 5 对齐</h2>
+
+<h3>9.1 统一状态反馈形</h3>
+<p>阶段 3/4 已写成：</p>
+<div class="eq-box">
+\[
+u=\sum_i k_i\,(x_i-x_{\mathrm{ref},i})
+\]
+</div>
+<p>
+约定 \(k=\partial u/\partial x\) <strong>已含符号</strong>：前倾 \(\theta>0\) 需要正输出（轮向前），故 \(k_\theta>0\)。标准教材 LQR 解是 \(u=-Kx\)（\(K\) 的元素对不稳定倒立摆通常为正），因此固件表里填的是 <strong>\(-K_{\mathrm{LQR}}\)</strong> 的各分量，才能与现有手调正增益同一套代码路径。
+</p>
+<table>
+  <tr><th>阶段</th><th>\(k_\theta\)</th><th>\(k_{\dot\theta}\)</th><th>\(k_s\)</th><th>\(k_{\dot s}\)</th></tr>
+  <tr><td>3 手调</td><td>经验正</td><td>经验正</td><td>0</td><td>0</td></tr>
+  <tr><td>4 手调</td><td>正</td><td>正</td><td>正</td><td>正</td></tr>
+  <tr><td>5 LQR</td><td>\(-K[0]\)</td><td>\(-K[1]\)</td><td>\(-K[2]\)</td><td>\(-K[3]\)</td></tr>
+</table>
+<p>（下标顺序以你脚本状态顺序为准，上表按 \(\theta,\dot\theta,s,\dot s\)。）</p>
+
+<h3>9.2 保留、不替换的部分</h3>
+<ul>
+  <li><code>kff</code>：速度→倾角前馈（非最小相位/跟踪结构问题，不是 LQR 能单独消灭的）；</li>
+  <li><code>vref_smooth</code>：软停；</li>
+  <li><code>pos_ref</code> 积分 + anti-windup；</li>
+  <li>偏航差速。</li>
+</ul>
+
+<h3>9.3 符号对照：加速度域 PD → 力矩 LQR</h3>
+<p>阶段 3 直觉式用加速度当输入；LQR 用力矩。二者通过执行器增益相连。切力矩后，不要拿 “%/rad” 的旧数和 “N·m/rad” 的新数直接比大小，先做单位换算或只比符号与相对比值。</p>
+
+<h3>9.4 推荐预习验证（纸面，不写代码）</h3>
+<ol>
+  <li>用极简模型 \(l\ddot\theta=g\theta-\ddot s\) 手推：开环特征根 \(\pm\sqrt{g/l}\)；</li>
+  <li>设 \(\ddot s=k_a\theta+k_d\dot\theta\)，推出 \(\omega_n,\zeta\) 公式，与 <code>balance_gain_theory.md</code> 对照；</li>
+  <li>写下四维 \(\mathbf{A},B\) 的零元素位置（哪些是结构零）；</li>
+  <li>解释为何 \(R\) 变大时 \(K\) 的范数往往变小；</li>
+  <li>说明为何 \(\Delta t\) 从 5 ms 改成 10 ms 必须重算离散 \(K\)。</li>
+</ol>
+</section>
+
+<!-- ===================== 10 ===================== -->
+<section id="checklist">
+<h2>10. 落地 LQR 代码前的理论检查清单</h2>
+<table>
+  <tr><th>检查项</th><th>通过标准</th></tr>
+  <tr><td>能口述倒立摆不稳定来源</td><td>重力力矩 \(\propto\sin\theta\)，线性化后正反馈</td></tr>
+  <tr><td>能解释为何前倾要向前加速</td><td>\(l\ddot\theta=g\theta-\ddot s\) 或等价取矩</td></tr>
+  <tr><td>分清运动学 / 动力学</td><td>\(s=r\varphi\) vs \(\sum F=ma,\sum\tau=I\alpha\)</td></tr>
+  <tr><td>状态向量与 \(K\) 顺序</td><td>与脚本、固件三方一致</td></tr>
+  <tr><td>二次型 \(Q,R\) 含义</td><td>能说出调哪个权重大致影响什么</td></tr>
+  <tr><td>CARE vs DARE</td><td>知道实车用 DARE + ZOH</td></tr>
+  <tr><td>\(u\) 的单位</td><td>N·m，且执行器链路已标定</td></tr>
+  <tr><td>固件符号</td><td>填 \(-K\)，与手调正 \(k\) 同构</td></tr>
+  <tr><td>\(M/m\) 不双计电机</td><td>电机壳体在 \(M\)，仅转子惯量可进 \(m\)</td></tr>
+</table>
+<div class="callout">
+  <p class="t">一句话</p>
+  <p style="margin:0">LQR 不是魔法增益生成器；它是“线性模型 + 二次代价”下的最优状态反馈。模型错、单位错、离散周期错，最优解就最优在错误的宇宙里。</p>
+</div>
+</section>
+
+<!-- ===================== 11 ===================== -->
+<section id="worked">
+<h2>11. 完整推演示例：从极简物理到反馈结构</h2>
+<p>
+本节用<strong>故意简化</strong>的模型走完一遍思维链，目的是把符号感跑通；数值不是给你的实车 \(K\)。实车仍以仿真仓库脚本 + 实测参数为准。
+</p>
+
+<h3>11.1 设定</h3>
+<ul>
+  <li>极简：\(l\ddot\theta=g\theta-\ddot s\)，输入暂取 \(u_a=\ddot s\)（加速度域）；</li>
+  <li>\(l=0.05\,\mathrm{m}\)，\(g=9.81\)；</li>
+  <li>先只管 \((\theta,\dot\theta)\) 两态，再讨论如何扩到四态。</li>
+</ul>
+<p>开环：\(\ddot\theta=(g/l)\theta\)，\(\lambda=\sqrt{g/l}\approx14.0\,\mathrm{rad/s}\)，\(1/\lambda\approx71\,\mathrm{ms}\)。</p>
+
+<h3>11.2 写成状态方程</h3>
+<div class="eq-box">
+\[
+\mathbf{x}=\begin{bmatrix}\theta\\ \dot\theta\end{bmatrix},\quad
+\mathbf{A}=\begin{bmatrix}0&1\\ g/l&0\end{bmatrix},\quad
+\mathbf{B}=\begin{bmatrix}0\\ -1/l\end{bmatrix},\quad
+u=u_a=\ddot s
+\]
+</div>
+<p>
+注意 \(\mathbf{B}\) 的负号：向前加速使 \(\ddot\theta\) 减小。
+</p>
+
+<h3>11.3 手调 PD 对照</h3>
+<p>取 \(u_a=k_{a\theta}\theta+k_{a\omega}\dot\theta\)，代回：</p>
+<div class="eq-box">
+\[
+\ddot\theta+(k_{a\omega}/l)\dot\theta+((k_{a\theta}-g)/l)\theta=0
+\]
+</div>
+<p>令 \(\omega_n=2\lambda\approx28\)，\(\zeta=0.8\)：</p>
+<div class="eq-box">
+\[
+k_{a\theta}=g+l\omega_n^2\approx49,\qquad
+k_{a\omega}=2\zeta\omega_n l\approx2.24
+\]
+</div>
+<p>这与仓库 <code>balance_gain_theory.md</code> 同构。</p>
+
+<h3>11.4 同一模型上的 LQR（连续，示意）</h3>
+<p>取 \(Q=\mathrm{diag}(q_\theta,q_\omega)=\mathrm{diag}(100,1)\)，\(R=1\)。概念上：</p>
+<ol>
+  <li>解 CARE 得 \(P\in\mathbb{R}^{2\times2}\)；</li>
+  <li>\(K=R^{-1}B^\top P\) 为 \(1\times 2\)；</li>
+  <li>\(u=-Kx\) 与上节 PD 同类，但系数由权重决定而非直接指定 \(\omega_n\)。</li>
+</ol>
+<p>
+你会看到：加大 \(q_\theta\)，\(|K|\) 增大，闭环更快——与加大 \(k_{a\theta}\) 同方向。LQR 的价值在四态耦合、多目标权衡时更明显；两态时它和极点配置几乎是同一家族的不同旋钮。
+</p>
+
+<h3>11.5 扩到四态：缺了什么</h3>
+<p>
+只有姿态环时，车可以“一边抖一边往前爬”。加上 \(s,\dot s\) 后 \(\mathbf{A}\) 增广为 4×4，\(\mathbf{B}\) 仍一列。\(Q\) 对角四元，Riccati 给出四个增益——这才是阶段 5 要换进固件的东西。加速度输入还要再经执行器变成 \(\tau\)：模型 \(\mathbf{B}\) 列从 “\(-1/l\)” 换成 “力矩→角加速” 的物理系数。
+</p>
+
+<h3>11.6 离散化在做什么（数字直觉）</h3>
+<p>
+\(\Delta t=0.005\) 时，\(A_d\approx I+A\Delta t\)（粗近似，仅助记；真正要用矩阵指数）。不稳定模态 \(e^{\lambda\Delta t}\approx 1+\lambda\Delta t\approx 1.07\)：每一步开环放大约 7%。控制器必须在同一步里提供足够的收缩。若误用 \(\Delta t=0.02\)（50 Hz）算 \(K\) 却在 200 Hz 跑，等效增益与相位边距都会偏——所以 <strong>dt 必须一致</strong>。
+</p>
+
+<h3>11.7 从加速度域到力矩域的标度</h3>
+<p>
+若执行器近似 \(\ddot s\approx \alpha\,\tau\)（\(\alpha\) 由 \(M,m,r\) 等决定），则
+</p>
+<div class="eq-box">
+\[
+K^{(\tau)} \approx \frac{1}{\alpha}K^{(a)}
+\]
+</div>
+<p>
+这解释了：同一套 \(\mathbf{Q},R\) 在不同输入定义下 \(K\) 数值差一个执行器增益。固件若仍输出 %，还要再除以 “%/N·m” 标定——错一层，全盘缩放错误。
+</p>
+</section>
+
+<!-- ===================== 12 ===================== -->
+<section id="faq">
+<h2>12. 易混淆点 FAQ</h2>
+
+<h3>Q1. LQR 和 PID 是不是两套完全不同的控制器？</h3>
+<p>
+对本仓库：不是两套 backend。都是状态反馈填增益表。PID 阶段用手拧的 \(k\)；LQR 阶段用模型算的 \(-K\)。结构（参考、软停、限幅、差速）共用。
+</p>
+
+<h3>Q2. 为什么倒立摆的“负反馈”看起来像正反馈？</h3>
+<p>
+若错误地做成“倾角越大轮子越往回转”，会加速摔倒。正确是倾角越大轮子越朝倾倒方向追。相对“误差 = 目标 − 测量”的经典 PID 模板，符号要反过来——所以本仓库不用误差 PID 模板，而用 \(\partial u/\partial x\) 约定。
+</p>
+
+<h3>Q3. 二次型里的 \(R\) 是不是越小越好？</h3>
+<p>
+\(R\to 0\) 趋向廉价控制（cheap control），增益趋于极大，对模型误差和噪声极其敏感，并瞬间饱和。\(R\) 是正则化，不是越省事越好。
+</p>
+
+<h3>Q4. 为什么仿真 LQR 稳、实车不稳？</h3>
+<p>
+优先查：\(l\) 测错、\(\tau\) 标度错、死区、\(dt\) 不一致、状态符号/顺序、IMU trim。不要先怀疑 ARE 求解器算错（在库函数正常时极少见）。
+</p>
+
+<h3>Q5. 运动学和动力学哪个先？</h3>
+<p>
+先写清广义坐标与约束（运动学），再写拉格朗日或牛顿（动力学）。约束错了，力学校正也救不回来。
+</p>
+
+<h3>Q6. 是否需要把偏航角放进 LQR 状态？</h3>
+<p>
+平面平衡模型通常不把 yaw 放进同一套四态 LQR。左右差速单独环更干净。阶段 5 文档也要求保留偏航差速、只换四项平衡增益。
+</p>
+
+<h3>Q7. \(I\approx 0\) 可以吗？</h3>
+<p>
+矮车、质量集中时，\(I\) 相对 \(Ml^2\) 可能不占主导，近似可用来起步。但若电池高高挂在顶上，\(I\) 和 \(l\) 都重要。用摆振法或 CAD 更好。
+</p>
+
+<h3>Q8. 连续 LQR 的 \(K\) 能不能直接用？</h3>
+<p>
+\(\Delta t\) 很小且你只做数量级预习时，连续与离散 \(K\) 接近。写进 200 Hz 固件应按仓库要求走离散 DARE。习惯上：设计用离散，连续仅作课内推导。
+</p>
+
+<h3>Q9. \(Q\) 单位怎么写？</h3>
+<p>
+\(x^\top Qx\) 要与 \(u^\top Ru\) 相加，因此 \(Q_{ii}\) 的单位是 \(1/(x_i\text{ 单位})^2\) 乘某个“代价单位”；\(R\) 是 \(1/(u\text{ 单位})^2\) 同代价单位。实际调参往往忽略字面单位，用 Bryson 无量纲化相对大小。
+</p>
+
+<h3>Q10. 阶段 5 为什么先电流/\(K_t\) 再算 \(K\)？</h3>
+<p>
+因为 \(\mathbf{B}\) 假设输入是真实力矩。没有 \(\tau\approx K_t I\)（或等价电压前馈），你等于在用错误的 \(\mathbf{B}\) 求最优 \(K\)。
+</p>
+</section>
+
+<!-- ===================== Appendix ===================== -->
+<section id="appendix">
+<h2>附录</h2>
+
+<h3>A. 极简模型的取矩推导提纲</h3>
+<p>
+车体视作质点 \(M\) 在无质量杆末端，轮轴加速度 \(\ddot s\)。在惯性系对质心列切向，或在加速系加惯性力 \(-M\ddot s\)：
+</p>
+<div class="eq-box">
+\[
+M l\ddot\theta = M g\sin\theta - M\ddot s\cos\theta
+\]
+</div>
+<p>除以 \(Ml\)，再小角度：</p>
+<div class="eq-box">
+\[
+\ddot\theta = \frac{g}{l}\theta - \frac{1}{l}\ddot s
+\]
+</div>
+<p>即 \(l\ddot\theta=g\theta-\ddot s\)。</p>
+
+<h3>B. 矩阵指数与 ZOH 的直觉</h3>
+<p>
+\(x_{k+1}=e^{A\Delta t}x_k+\cdots\)：在一个采样周期内无新控制变化时，状态按线性 ODE 精确演化。\(\Delta t\) 越大，离散模型与“连续设计再拿来用”的误差越大；不稳定系统对 \(\Delta t\) 更敏感。
+</p>
+
+<h3>C. 常见符号对照（教材 vs 本仓库）</h3>
+<table>
+  <tr><th>概念</th><th>教材常见</th><th>本仓库</th></tr>
+  <tr><td>控制律</td><td>\(u=-Kx\)</td><td>\(u=\sum k_i x_i\) 且 \(k=-K_{\mathrm{row}}\)</td></tr>
+  <tr><td>输入</td><td>力 / 力矩 / 电压</td><td>阶段 5 目标：轮轴力矩 N·m</td></tr>
+  <tr><td>倾角</td><td>有的从水平量</td><td>直立为零、前倾为正</td></tr>
+  <tr><td>位置</td><td>\(x\)</td><td>\(s\)</td></tr>
+</table>
+
+<h3>D. 延伸阅读（仓库内）</h3>
+<ul>
+  <li><code>docs/balance_gain_theory.md</code> — 姿态 PD 与 \(l\ddot\theta=g\theta-\ddot s\)</li>
+  <li><code>docs/stage34_gain_init_theory.md</code> — 四增益初值</li>
+  <li><code>docs/stage5.md</code> — 切 LQR 流程</li>
+  <li><code>docs/stage5_physical_params_table.md</code> — \(M,m,l\) 实测</li>
+  <li><code>docs/stage5_current_torque_plan.md</code> — 力矩执行器</li>
+</ul>
+
+<h3>E. 公式速查卡</h3>
+<div class="eq-box">
+\[
+\begin{aligned}
+&\text{牛顿} &\sum F&=ma,\quad\sum\tau=I\alpha\\
+&\text{倒立摆特征} &\lambda&=\sqrt{g/l}\\
+&\text{极简耦合} &l\ddot\theta&=g\theta-\ddot s\\
+&\text{状态方程} &\dot x&=Ax+Bu\\
+&\text{LQR} &u&=-Kx,\ K=R^{-1}B^\top P\\
+&\text{CARE} &A^\top P+PA-PBR^{-1}B^\top P+Q&=0\\
+&\text{离散} &x^+&=A_d x+B_d u\quad(\mathrm{ZOH})
+\end{aligned}
+\]
+</div>
+
+<h3>F. 电机电路与力矩（执行器侧速写）</h3>
+<p>
+直流有刷/减速电机稳态：
+</p>
+<div class="eq-box">
+\[
+V = IR + K_b\omega,\qquad
+\tau = K_t I
+\]
+</div>
+<p>
+有电流传感时：测 \(I\) → \(\tau=K_t I\)，LQR 的 \(u\) 直接对口。无电流时：用电压与反电动势估 \(I\)，误差更大。电感 \(L\mathrm{d}I/\mathrm{d}t\) 在平衡环带宽远低于电气带宽时可忽略；电流环要压过电气极点。
+</p>
+
+<h3>G. 可观性（为何 IMU + 编码器够）</h3>
+<p>
+可观性矩阵 \(\mathcal{O}=[C^\top\ (CA)^\top\ \cdots]^\top\) 满秩时，可从输出重建状态。\(\theta\) 由姿态融合给出，\(s\) 由编码器给出，通常直接当全状态可用，不必再上状态观测器。若只用轮速、没有倾角，倒立摆往往难以可观/可稳——这也是为什么平衡车必须有 IMU。
+</p>
+
+<h3>H. 自学检测题（不看答案先做）</h3>
+<ol>
+  <li>若 \(l\) 从 0.05 m 减到 0.012 m，\(\lambda\) 变为原来的多少倍？对控制周期意味着什么？</li>
+  <li>说明 \(\mathbf{Q}=\mathrm{diag}(1,0,0,0)\) 且 \(R\) 很小时期望看到什么闭环行为，有何风险。</li>
+  <li>纯滚动约束破坏时，状态 \(s\)（编码器积分）与真实轮轴位移关系如何？</li>
+  <li>为何固件填 \(-K\) 而不是 \(K\)？</li>
+  <li>写出极简模型 \(\mathbf{A},\mathbf{B}\)（加速度输入），标出哪个元素携带不稳定。</li>
+</ol>
+<p><strong>参考答案要点</strong>：1) \(\sqrt{0.05/0.012}\approx2.04\) 倍，倒下更快，环要够快/增益够大。2) 极力压 \(\theta\)，力矩狂暴，易饱和抖振，位置不管。3) 打滑后编码器不再代表 \(s\)。4) 教材 \(u=-Kx\) vs 仓库 \(u=+kx\) 且 \(k>0\)。5) \(A_{21}=g/l>0\)。</p>
+</section>
+
+<footer class="note">
+  <p>文档路径：<code>docs/lqr_balance_theory.html</code> · 本地用浏览器打开即可（需联网加载 MathJax）。与阶段 5 工程文档配套，不替代实车标定 SOP。</p>
+  <p>配套：<a href="./control_systems_mental_model.html">控制思路</a> · <a href="./lagrange_dynamics_why.html">拉格朗日</a> · <a href="./lqr_study_qa.html">本轮问答归档</a></p>
+</footer>
+</main>
+</div>
+</body>
+</html>

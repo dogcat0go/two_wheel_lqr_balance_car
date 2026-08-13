@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>控制思路入门：什么时候建状态方程、整条思维链怎么搭</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --paper: #fffcf7;
+    --ink: #1a1f24;
+    --muted: #5a6570;
+    --line: #d8d2c6;
+    --accent: #0b5f6b;
+    --accent-soft: #e6f2f3;
+    --warn: #8a3b12;
+    --warn-bg: #f8eee6;
+    --code-bg: #eef1f3;
+    --shadow: 0 1px 0 rgba(26,31,36,.04), 0 12px 40px rgba(26,31,36,.06);
+    --radius: 10px;
+    --max: 52rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #e8f4f5 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #f3efe6 0%, transparent 50%),
+      var(--bg);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong",
+      "Libertinus Serif", "Iowan Old Style", Georgia, serif;
+    line-height: 1.75;
+    font-size: 17px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: 240px minmax(0, var(--max));
+    gap: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  nav.toc {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding: 1rem;
+    background: rgba(255,252,247,.85);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(8px);
+    font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  nav.toc h2 {
+    margin: 0 0 .75rem;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--ink);
+    text-decoration: none;
+    padding: .22rem 0;
+    border-left: 2px solid transparent;
+    padding-left: .55rem;
+  }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .l2 { padding-left: 1.1rem; color: var(--muted); font-size: 12px; }
+  main {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 2.25rem 2rem 3rem;
+  }
+  header.doc-head {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header.doc-head .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .5rem;
+  }
+  h1 {
+    font-size: clamp(1.55rem, 3vw, 2.05rem);
+    line-height: 1.25;
+    margin: 0 0 .75rem;
+    font-weight: 700;
+  }
+  .lead { color: var(--muted); margin: 0; font-size: 1.02rem; }
+  h2 {
+    margin: 2.75rem 0 1rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--line);
+    font-size: 1.45rem;
+    color: var(--accent);
+  }
+  h2:first-of-type { border-top: none; }
+  h3 { margin: 1.75rem 0 .65rem; font-size: 1.15rem; }
+  h4 { margin: 1.25rem 0 .4rem; font-size: 1.02rem; }
+  p { margin: .7rem 0; }
+  ul, ol { padding-left: 1.35rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: "IBM Plex Mono", "Source Code Pro", ui-monospace, monospace;
+    font-size: .9em;
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 4px;
+  }
+  pre {
+    background: #1e262b;
+    color: #e8eef1;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .95rem;
+    margin: 1rem 0 1.25rem;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: .55rem .65rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: .85rem 1rem;
+    margin: 1.1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn {
+    border-left-color: var(--warn);
+    background: var(--warn-bg);
+  }
+  .callout .t {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 650;
+    font-size: .92rem;
+    margin: 0 0 .35rem;
+  }
+  .eq-box {
+    background: #f3f7f8;
+    border: 1px solid #c9dde0;
+    border-radius: 8px;
+    padding: .2rem 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  .fig {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: #fbfaf7;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: .92rem;
+  }
+  .fig .cap { color: var(--muted); margin-top: .65rem; font-size: .85rem; }
+  .ascii {
+    white-space: pre;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    overflow-x: auto;
+    margin: 0;
+  }
+  .roadmap {
+    display: grid;
+    gap: .55rem;
+    margin: 1rem 0 1.5rem;
+  }
+  .roadmap .step {
+    display: grid;
+    grid-template-columns: 2.2rem 1fr;
+    gap: .75rem;
+    align-items: start;
+    padding: .7rem .85rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    font-size: .92rem;
+  }
+  .roadmap .n {
+    width: 2.2rem; height: 2.2rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: .85rem;
+  }
+  .decision {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    margin: 1rem 0;
+    background: #fff;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    font-size: .94rem;
+  }
+  .decision h4 { margin-top: 0; color: var(--accent); }
+  footer.note {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .9rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    main { padding: 1.5rem 1.1rem 2.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <h2>目录</h2>
+  <a href="#why">0. 你缺的不是公式</a>
+  <a href="#vocab">1. 五个词先对齐</a>
+  <a href="#pipeline">2. 一条总流程</a>
+  <a href="#when-state">3. 何时建状态方程</a>
+  <a href="#how-state">4. 怎么建：可操作配方</a>
+  <a href="#linear">5. 何时线性化</a>
+  <a href="#open-closed">6. 开环 / 闭环</a>
+  <a href="#controllers">7. PID → 状态反馈 → LQR</a>
+  <a href="#decide">8. 决策树与自检</a>
+  <a href="#robot">9. 落到平衡车</a>
+  <a href="#mistakes">10. 常见卡点</a>
+  <a href="#next">11. 读完去哪</a>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="eyebrow">FishBot · 控制思路补课 · 配合 LQR 理论篇</p>
+  <h1>控制思路入门：什么时候建状态方程</h1>
+  <p class="lead">
+    给「没系统学过控制理论、但已经在拧平衡车增益」的人：先搭思维骨架，再谈矩阵。
+    核心问题只有一个——<strong>我现在卡在流程的哪一步，这一步要不要状态方程</strong>。
+  </p>
+</header>
+
+<section id="why">
+<h2>0. 你缺的往往不是公式，而是“工序图”</h2>
+<p>
+控制教材一上来就写 \(\dot x=Ax+Bu\)，好像全世界都已经默认你知道：
+为什么要 \(x\)、\(A\) 从哪来、什么时候才需要它。若你没有这张工序图，就会感觉：
+</p>
+<ul>
+  <li>牛顿定律也会用，为什么突然要“状态”？</li>
+  <li>阶段 3 手调 PD 明明能站，为什么阶段 5 又要建模算 \(K\)？</li>
+  <li>拉格朗日、状态方程、LQR、离散化……谁先谁后？</li>
+</ul>
+<p>
+把控制想成<strong>工程流水线</strong>，而不是一堆并列公式，会轻松很多：
+</p>
+<div class="roadmap">
+  <div class="step"><div class="n">1</div><div><strong>说清要控什么</strong>：输入能拧什么旋钮，输出要盯什么量，什么叫“表现好”。</div></div>
+  <div class="step"><div class="n">2</div><div><strong>选要不要模型</strong>：纯试凑 / 基于模型设计。手调 PID 可以无完整模型；LQR 必须有模型。</div></div>
+  <div class="step"><div class="n">3</div><div><strong>若要模型</strong>：先物理（运动学+动力学）→ 微分方程 →（常）再写成状态方程。</div></div>
+  <div class="step"><div class="n">4</div><div><strong>若要线性设计</strong>：在工作点线性化 → \(A,B\) → 极点配置或 LQR。</div></div>
+  <div class="step"><div class="n">5</div><div><strong>落到计算机</strong>：离散化、采样周期、执行器单位、传感器噪声。</div></div>
+  <div class="step"><div class="n">6</div><div><strong>实车校准模型假设</strong>：参数、死区、饱和——模型错则“最优”也错。</div></div>
+</div>
+<div class="callout">
+  <p class="t">和本仓库的对应</p>
+  <p style="margin:0">阶段 3/4 ≈ 流水线第 1 步 + 跳过完整模型的试凑反馈；阶段 5 ≈ 补上 3–6 步。所以不是“PD 错了才上 LQR”，而是“先证明硬件能站，再换用模型算出的增益”。</p>
+</div>
+</section>
+
+<section id="vocab">
+<h2>1. 五个词先对齐（比背定义重要）</h2>
+
+<h3>1.1 被控对象（Plant）</h3>
+<p>
+真实物理东西：电机+车体+轮子+地面。你<strong>不能改定律</strong>，只能改加在它上面的输入。
+</p>
+
+<h3>1.2 输入 \(u\)（你能命令的）</h3>
+<p>
+例：PWM 占空比、目标电流、目标力矩 \(\tau\)。同一辆车，把 \(u\) 定义成 % 还是 N·m，后面的 \(B\) 矩阵完全不同——这不是数学游戏，是单位契约。
+</p>
+
+<h3>1.3 输出 \(y\)（你能测到的、或关心的）</h3>
+<p>
+例：IMU 俯仰角、编码器速度。输出不一定等于状态；有时 \(y\) 只是状态的一部分。
+</p>
+
+<h3>1.4 状态 \(x\)（“为了预测未来，现在必须记住的最小信息”）</h3>
+<p>
+这句话比任何教材定义都好用。问自己：
+</p>
+<ul>
+  <li>若我突然忘掉当前倾角，还能不能正确算下一步力矩？——不能，所以 \(\theta\) 是状态（或必须能从别的量推出来）。</li>
+  <li>若我忘掉“今天星期几”，影响平衡吗？——不影响，不是状态。</li>
+</ul>
+<p>
+对理想无摩擦轮式倒立摆，四元组 \((\theta,\dot\theta,s,\dot s)\) 通常够用。电流环很慢时，电流也可能要当状态——那是执行器增广。
+</p>
+
+<h3>1.5 扰动 \(d\)（你不想要但存在的）</h3>
+<p>
+推一把、坡度、风、电池压降。反馈的价值很大一部分是抗扰动；前馈则是“已知扰动先抵消”。
+</p>
+
+<div class="fig">
+<pre class="ascii">
+   扰动 d
+      │
+      ▼
+  u ──▶ [ 被控对象 ] ──▶ y
+          ▲    │
+          │    └─ 内部状态 x 在演化
+          └──────── 控制器（看 y 或 x，产 u）
+</pre>
+<p class="cap">先会画这张框图，再往里面填公式。状态方程就是在描述方框内部 \(x\) 怎么变。</p>
+</div>
+</section>
+
+<section id="pipeline">
+<h2>2. 一条总流程（从问题到公式）</h2>
+<p>每次面对新控制任务，按这个顺序问，而不是先翻哪本讲 \(A,B\) 的书：</p>
+<ol>
+  <li><strong>目标</strong>：站稳？跟速度？定点？要多快、允许多大误差？</li>
+  <li><strong>执行器</strong>：我真正能改的物理量是什么？（电压 / 电流 / 力矩）</li>
+  <li><strong>传感</strong>：我能直接得到哪些量？缺的要不要观测器？</li>
+  <li><strong>要不要第一性原理模型？</strong>
+    <ul>
+      <li>不需要：试凑 PID / 手调状态反馈（你阶段 3/4）。</li>
+      <li>需要：为了算增益、做仿真、做最优、做稳定性证明。</li>
+    </ul>
+  </li>
+  <li><strong>若需要模型</strong>：选坐标 → 运动学约束 → 动力学（牛顿或拉格朗日）→ ODE。</li>
+  <li><strong>是否写成状态方程</strong>：要做现代控制（极点配置、LQR、卡尔曼）时，写成 \(\dot x=f(x,u)\)。</li>
+  <li><strong>是否线性化</strong>：要用线性工具（LQR、波特图、根轨迹）时，在工作点线性化。</li>
+  <li><strong>离散与实现</strong>：采样周期、单位、限幅、滤波。</li>
+</ol>
+<div class="callout warn">
+  <p class="t">关键误区</p>
+  <p style="margin:0">“做控制 = 一上来写状态方程”。错。状态方程是<strong>第 6 步的一种书写格式</strong>，服务于后面要用的工具。阶段 3 能站，说明你已经在用反馈思想，只是还没用矩阵形式表达植物理。</p>
+</div>
+</section>
+
+<section id="when-state">
+<h2>3. 什么时候需要构建状态方程？</h2>
+
+<h3>3.1 一句话判据</h3>
+<p>
+<strong>当你要用“以状态为核心”的设计或分析工具时，就需要状态方程；当你只靠试凑和输入输出感觉时，可以不写。</strong>
+</p>
+
+<h3>3.2 需要写状态方程的典型场景</h3>
+<table>
+  <tr><th>你想做的事</th><th>为什么需要状态形式</th></tr>
+  <tr><td>LQR / LQG</td><td>代价和 Riccati 都定义在 \(x,u\) 上</td></tr>
+  <tr><td>极点配置（全状态反馈）</td><td>要设计 \(A-BK\) 的特征值</td></tr>
+  <tr><td>可控性 / 可观性检查</td><td>判据吃的是 \(A,B,C\)</td></tr>
+  <tr><td>状态观测器 / 卡尔曼滤波</td><td>估计的是 \(x\)</td></tr>
+  <tr><td>多输入多输出耦合系统</td><td>传递函数矩阵很烦，状态更干净</td></tr>
+  <tr><td>仿真里统一积分</td><td>数值积分器吃一阶式 \(\dot x=f(x,u)\)</td></tr>
+</table>
+
+<h3>3.3 可以先不写的场景</h3>
+<table>
+  <tr><th>你在做的事</th><th>通常够用的工具</th></tr>
+  <tr><td>单回路调速、调温</td><td>PID + 阶跃响应手感</td></tr>
+  <tr><td>平衡车阶段 3 扶正</td><td>物理直觉 + \(k_\theta,k_{\dot\theta}\) 试凑</td></tr>
+  <tr><td>只关心频域裕度的 SISO</td><td>波特图 / 传递函数（也不一定要状态）</td></tr>
+  <tr><td>硬件排障、死区、接线</td><td>根本不需要状态方程</td></tr>
+</table>
+
+<h3>3.4 “微分方程”和“状态方程”是什么关系？</h3>
+<p>
+动力学直接给你的常常是<strong>二阶（或更高阶）微分方程</strong>，例如：
+</p>
+<div class="eq-box">
+\[
+l\ddot\theta = g\theta - \ddot s
+\]
+</div>
+<p>
+这已经是模型。状态方程不是新物理，只是把高阶式<strong>改写成一阶向量形式</strong>，方便统一处理：
+</p>
+<div class="eq-box">
+\[
+\dot{\mathbf{x}} = f(\mathbf{x},u)
+\quad\text{或线性}\quad
+\dot{\mathbf{x}}=Ax+Bu
+\]
+</div>
+<div class="callout">
+  <p class="t">类比</p>
+  <p style="margin:0">二阶 ODE 像“用段落写的故事”；状态方程像“把故事拆成条目列表，方便数据库和算法处理”。故事内容应相同，只是格式变了。</p>
+</div>
+
+<h3>3.5 决策小结</h3>
+<div class="decision">
+  <h4>问自己三个问题</h4>
+  <ol>
+    <li>我是否要用 LQR / 极点配置 / 观测器？→ 是，则需要状态方程。</li>
+    <li>我是否只有试凑增益、且已经够稳？→ 可以暂不写，但要知道物理直觉从哪来。</li>
+    <li>我是否连二阶物理方程都没有？→ 先别写 \(A,B\)，先补动力学（牛顿或拉格朗日）。</li>
+  </ol>
+</div>
+</section>
+
+<section id="how-state">
+<h2>4. 怎么建状态方程：可操作配方</h2>
+<p>
+不要背“选取状态变量的三条定理”。按下述配方做即可。
+</p>
+
+<h3>4.1 配方（通用）</h3>
+<div class="roadmap">
+  <div class="step"><div class="n">A</div><div><strong>列出广义坐标</strong>：独立的几何自由度。平衡车平面模型常用 \(s,\theta\)。</div></div>
+  <div class="step"><div class="n">B</div><div><strong>写出动力学</strong>：得到含 \(\ddot s,\ddot\theta\) 的方程（牛顿或拉格朗日）。</div></div>
+  <div class="step"><div class="n">C</div><div><strong>解出最高阶导数</strong>：把 \(\ddot s,\ddot\theta\) 写成更低阶量与 \(u\) 的函数。</div></div>
+  <div class="step"><div class="n">D</div><div><strong>定义状态</strong>：通常把每个广义坐标及其一阶导都放进 \(x\)。<br/>例：\(x=[\theta,\dot\theta,s,\dot s]^\top\)。</div></div>
+  <div class="step"><div class="n">E</div><div><strong>拼一阶式</strong>：\(\dot\theta\) 的方程就是“第二态本身”；\(\ddot\theta\) 的方程变成 \(\dot x_2=\ldots\)。</div></div>
+  <div class="step"><div class="n">F</div><div><strong>定义输出</strong>：\(y=Cx\)（测什么写什么）。</div></div>
+</div>
+
+<h3>4.2 小例子：质量–弹簧–阻尼</h3>
+<p>物理：</p>
+<div class="eq-box">
+\[
+m\ddot q + c\dot q + kq = u
+\]
+</div>
+<p>配方 C：</p>
+<div class="eq-box">
+\[
+\ddot q = -\frac{k}{m}q -\frac{c}{m}\dot q +\frac{1}{m}u
+\]
+</div>
+<p>配方 D–E：令 \(x_1=q,\;x_2=\dot q\)</p>
+<div class="eq-box">
+\[
+\dot x_1 = x_2,\qquad
+\dot x_2 = -\frac{k}{m}x_1-\frac{c}{m}x_2+\frac{1}{m}u
+\]
+</div>
+<div class="eq-box">
+\[
+A=\begin{bmatrix}0&1\\ -k/m&-c/m\end{bmatrix},\quad
+B=\begin{bmatrix}0\\ 1/m\end{bmatrix}
+\]
+</div>
+<p>
+你看：没有任何玄学。状态方程 = “把二阶拆成两个一阶，再打包成矩阵”。
+</p>
+<div class="callout">
+  <p class="t">\(A,B\) 不是“矩阵乘法化简”出来的</p>
+  <p style="margin:0">对号入座：\(\dot x_1=0\cdot x_1+1\cdot x_2+0\cdot u\)，\(\dot x_2=\ldots\)，系数排进 \(A,B\)。用 \(Ax+Bu\) 验算应回到原一阶式。</p>
+</div>
+<p>
+\(Ax+Bu\) 算完是两行向量；第一行是 \(x_2\)，表示 \(\dot x_1=x_2\)（位置变化率=速度），没有“丢掉”。第二行才是牛顿定律给出的加速度。
+</p>
+<p>
+读 ODE：\(x(t+\Delta t)\approx x+\Delta t(Ax+Bu)\)。下一拍由 <strong>\(Ax\)（自然漂移）+ \(Bu\)（操纵）</strong> 共同决定；你只能选 \(u\)。赶到远处状态通常要一串输入，不是一拍搞定。
+</p>
+<p>
+ODE = Ordinary Differential Equation（常微分方程）。\(\dot{\mathbf{x}}\) 是对时间的一阶导；\(\dot x=f(x,u)\) 是一阶（向量）形式。
+</p>
+
+<h3>4.3 平衡车极简版（加速度当输入）</h3>
+<div class="eq-box">
+\[
+\ddot\theta = \frac{g}{l}\theta - \frac{1}{l}u_a,\quad u_a=\ddot s
+\]
+</div>
+<div class="eq-box">
+\[
+x=\begin{bmatrix}\theta\\ \dot\theta\end{bmatrix},\quad
+A=\begin{bmatrix}0&1\\ g/l&0\end{bmatrix},\quad
+B=\begin{bmatrix}0\\ -1/l\end{bmatrix}
+\]
+</div>
+<p>
+扩展到四态时，只是再塞进 \(s,\dot s\)，并把 \(u\) 从 \(\ddot s\) 换成 \(\tau\)（\(B\) 列随之改变）。<strong>工序不变</strong>。
+</p>
+
+<h3>4.4 状态顺序是约定，不是物理</h3>
+<p>
+\([\theta,\dot\theta,s,\dot s]\) 与 \([s,\theta,\dot s,\dot\theta]\) 都对，但 \(K\) 向量顺序必须跟着变。写代码前把顺序写成注释钉死。
+</p>
+
+<h3>4.5 输出方程 \(y=Cx+Du\)</h3>
+<p>
+\(\dot x=Ax+Bu\) 描述内部演化；\(y=Cx+Du\) 描述<strong>测到/关心的量</strong>。\(D\) 通常为 0。全状态可测时 \(C=I\)。这与可控性矩阵 \(\mathcal{C}=[B\ AB\ \cdots]\) <strong>不是同一个 \(C\)</strong>。
+</p>
+
+<h3>4.6 从加速度行补全 \(A\)（预习）</h3>
+<p>
+若已有加速度仿射 \(\ddot q=\mathbf{A}_a x+\mathbf{B}_a u\)，完整 \(A\) 还要两行运动学：\(\dot s=\dot s\)、\(\dot\theta=\dot\theta\)——对准速度分量填 1，其余 0。详见问答归档 §2–3。
+</p>
+</section>
+
+<section id="linear">
+<h2>5. 什么时候要线性化？</h2>
+
+<h3>5.1 非线性是常态</h3>
+<p>
+真实：\(\sin\theta\)、饱和、摩擦。完整模型是 \(\dot x=f(x,u)\)。线性工具（LQR、经典根轨迹）吃的是 \(A,B\)。
+</p>
+
+<h3>5.2 何时线性化</h3>
+<ul>
+  <li>你准备用 LQR / 线性极点配置 / 线性卡尔曼；</li>
+  <li>工作点附近运动幅度小（直立附近几度到十几度）；</li>
+  <li>你需要局部稳定性、带宽等线性指标。</li>
+</ul>
+
+<h3>5.3 何时不要只靠线性模型</h3>
+<ul>
+  <li>摔倒大角度恢复、坐地再站；</li>
+  <li>频繁顶饱和；</li>
+  <li>要证明全局稳定（需要别的工具）。</li>
+</ul>
+
+<h3>5.4 线性化在算什么</h3>
+<p>
+在平衡点 \((x_e,u_e)\)（直立常取 \(x_e=0,u_e=0\)）：
+</p>
+<div class="eq-box">
+\[
+A=\frac{\partial f}{\partial x}\Big|_{e},\qquad
+B=\frac{\partial f}{\partial u}\Big|_{e}
+\]
+</div>
+<p>
+对倒立摆，\(\sin\theta\approx\theta\) 就是最常见的手工线性化。不必每次都写雅可比符号，但要知道本质是一阶泰勒。
+</p>
+</section>
+
+<section id="open-closed">
+<h2>6. 开环与闭环：状态方程放在哪</h2>
+
+<div class="fig">
+<pre class="ascii">
+开环：  命令 u ──▶ 对象 ──▶ y     （不看结果）
+闭环：  命令 r ──▶ 控制器 ──▶ u ──▶ 对象 ──▶ y
+                      ▲                    │
+                      └────── 反馈（y 或 x）┘
+</pre>
+</div>
+<p>
+<strong>对象的状态方程</strong>描述开环植物理（倒立摆开环不稳，\(A\) 有正特征值）。
+<strong>控制器</strong>另写：例如 \(u=-Kx\) 或 PID。合在一起才得到闭环 \(\dot x=(A-BK)x\)。
+</p>
+<div class="callout">
+  <p class="t">调参时你在改什么</p>
+  <p style="margin:0">拧 \(k_\theta\) 时，你是在改控制器，不是改物理 \(A\)。LQR 则是：固定 \(A,B\) 与 \(Q,R\)，自动生成一套 \(K\)。物理参数测错 → \(A,B\) 错 → \(K\) 最优在错模型上。</p>
+</div>
+</section>
+
+<section id="controllers">
+<h2>7. PID、状态反馈、LQR：同一谱系上的三档</h2>
+
+<table>
+  <tr><th>档</th><th>你在用什么信息</th><th>增益从哪来</th><th>本仓库</th></tr>
+  <tr><td>经典 PID</td><td>主要一个误差 \(e=r-y\)</td><td>手拧 / 经验公式</td><td>刻意不用误差 PID 模板做平衡</td></tr>
+  <tr><td>状态反馈</td><td>多个状态 \(x\)</td><td>手拧各 \(k_i\)</td><td>阶段 3/4</td></tr>
+  <tr><td>LQR</td><td>同样用 \(x\)</td><td>模型 + \(Q,R\) 算出 \(K\)</td><td>阶段 5</td></tr>
+</table>
+
+<p>
+关键认知：<strong>LQR 不是另一种硬件结构</strong>，它是“状态反馈增益的一种算法来源”。所以固件可以同一套 \(u=\sum k_i(x_i-x_{\mathrm{ref},i})\)，只换 \(k\) 表。
+</p>
+
+<h3>7.1 为什么倒立摆不爱用“误差 PID 模板”</h3>
+<p>
+模板 \(u=k_p(e)\) 且 \(e=\theta_{\mathrm{des}}-\theta\) 时，前倾 \(\theta>0\) 会给出负控制——轮子往后，更倒。平衡需要“朝倒的方向追”。仓库约定 \(k=\partial u/\partial x>0\)，避免套错符号。
+</p>
+
+<h3>7.2 传递函数视角（可选）</h3>
+<p>
+SISO 时，状态空间与传递函数 \(G(s)=C(sI-A)^{-1}B\) 可互转。多状态、多目标时状态空间更自然。你现阶段不必先精通波特图，也能做 LQR；但要知道：经典控制看的是 \(G(s)\)，现代控制看的是 \(A,B,C\)。
+</p>
+</section>
+
+<section id="decide">
+<h2>8. 决策树与自检问题</h2>
+
+<div class="decision">
+  <h4>场景 A：车还站不稳</h4>
+  <p>先别建 LQR 状态方程去算 \(K\)。查 IMU、电机方向、安全限幅、手调 \(k_\theta\) 符号。状态方程解决不了接线反了。</p>
+</div>
+<div class="decision">
+  <h4>场景 B：手调能站，想换模型增益</h4>
+  <p>现在需要：物理参数 → 动力学 → 状态方程 → 线性化 → 离散 LQR。同时力矩接口单位要正确。</p>
+</div>
+<div class="decision">
+  <h4>场景 C：只想理解“为什么前倾要前加速”</h4>
+  <p>一张二阶式 \(l\ddot\theta=g\theta-\ddot s\) 就够，不必先上四维 \(A\)。</p>
+</div>
+<div class="decision">
+  <h4>场景 D：仿真与实车差很多</h4>
+  <p>回到模型假设（\(l\)、摩擦、\(\tau\) 标度、\(dt\)），不是先改 Riccati 求解器。</p>
+</div>
+
+<h3>8.1 自检题（建立元认知）</h3>
+<ol>
+  <li>我当前的 \(u\) 定义是什么单位？</li>
+  <li>我有没有已经写出二阶物理方程？还是在空谈 \(A,B\)？</li>
+  <li>我要用的工具是试凑还是 LQR？后者才强制状态方程。</li>
+  <li>线性化工作点是哪？偏离多大还能信？</li>
+  <li>离散周期和设计是否一致？</li>
+</ol>
+</section>
+
+<section id="robot">
+<h2>9. 落到你的两轮平衡车</h2>
+
+<div class="fig">
+<pre class="ascii">
+阶段 3/4（已走过）
+  目标：站、走
+  模型：脑子里有极简式即可
+  控制器：手调状态反馈
+  状态方程：非正式，但结构已是 u = k·x
+
+阶段 5（正准备）
+  目标：同一结构，增益改由 LQR 给
+  必须补：
+    ① 动力学 / 拉格朗日或牛顿 → ODE
+    ② 状态方程 + 线性化 → A,B
+    ③ 离散 LQR → K
+    ④ u 的单位 = N·m（执行器）
+</pre>
+</div>
+
+<table>
+  <tr><th>概念</th><th>本车取值意识</th></tr>
+  <tr><td>状态</td><td>\(\theta,\dot\theta,s,\dot s\)（顺序与脚本钉死）</td></tr>
+  <tr><td>输入</td><td>阶段 5：力矩；阶段 3/4：曾用 %</td></tr>
+  <tr><td>输出</td><td>IMU + 编码器（近似全状态可测）</td></tr>
+  <tr><td>何时写 \(A,B\)</td><td>算 LQR 之前；不是拧手调增益之前</td></tr>
+  <tr><td>参考成形</td><td><code>kff</code>、软停：不属于 \(A,B\)，属于控制器外围</td></tr>
+</table>
+</section>
+
+<section id="mistakes">
+<h2>10. 常见卡点（没系统学控制时的典型坑）</h2>
+<table>
+  <tr><th>卡点</th><th>疏通方式</th></tr>
+  <tr><td>把状态方程当成新物理</td><td>它只是 ODE 的一阶向量写法</td></tr>
+  <tr><td>还没动力学就填 \(A\)</td><td>\(A\) 的数来自线性化后的物理系数</td></tr>
+  <tr><td>以为 LQR 会自动处理死区/坡度</td><td>线性模型没有的东西，\(K\) 也不会变出来</td></tr>
+  <tr><td>混淆对象模型与控制器</td><td>\(A,B\) 是车；\(K\) 是你</td></tr>
+  <tr><td>传递函数和状态空间打架</td><td>同系统两种表示；现阶段优先状态空间</td></tr>
+  <tr><td>离散/连续混用</td><td>固件采样周期决定用 DARE 还是 CARE</td></tr>
+</table>
+</section>
+
+<section id="next">
+<h2>11. 读完去哪</h2>
+<ul>
+  <li>物理与 LQR 公式链：<a href="./lqr_balance_theory.html">lqr_balance_theory.html</a></li>
+  <li>拉格朗日为什么那样写：<a href="./lagrange_dynamics_why.html">lagrange_dynamics_why.html</a></li>
+  <li>本轮提问归档：<a href="./lqr_study_qa.html">lqr_study_qa.html</a></li>
+  <li>工程落地：<code>stage5.md</code>、物理参数表、电流/力矩计划；前馈对照 <code>stage4_vel_pitch_feedforward.md</code></li>
+</ul>
+<div class="callout">
+  <p class="t">建议阅读顺序</p>
+  <p style="margin:0">本文 → 拉格朗日 → LQR 理论 → 手调/kff 桥 → stage5 工程链。问答归档随时按提问跳回对应结构。</p>
+</div>
+</section>
+
+<footer class="note">
+  <p>文档路径：<code>docs/control_systems_mental_model.html</code> · 浏览器打开，需联网加载 MathJax。</p>
+</footer>
+</main>
+</div>
+</body>
+</html>

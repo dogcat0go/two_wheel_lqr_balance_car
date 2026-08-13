@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>拉格朗日动力学补课：为什么方程要写成那样</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --paper: #fffcf7;
+    --ink: #1a1f24;
+    --muted: #5a6570;
+    --line: #d8d2c6;
+    --accent: #0b5f6b;
+    --accent-soft: #e6f2f3;
+    --warn: #8a3b12;
+    --warn-bg: #f8eee6;
+    --code-bg: #eef1f3;
+    --shadow: 0 1px 0 rgba(26,31,36,.04), 0 12px 40px rgba(26,31,36,.06);
+    --radius: 10px;
+    --max: 52rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 12% -8%, #e8f4f5 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #f3efe6 0%, transparent 50%),
+      var(--bg);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong",
+      "Libertinus Serif", "Iowan Old Style", Georgia, serif;
+    line-height: 1.75;
+    font-size: 17px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: 240px minmax(0, var(--max));
+    gap: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  nav.toc {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding: 1rem;
+    background: rgba(255,252,247,.85);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(8px);
+    font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  nav.toc h2 {
+    margin: 0 0 .75rem;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--ink);
+    text-decoration: none;
+    padding: .22rem 0;
+    border-left: 2px solid transparent;
+    padding-left: .55rem;
+  }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .l2 { padding-left: 1.1rem; color: var(--muted); font-size: 12px; }
+  main {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 2.25rem 2rem 3rem;
+  }
+  header.doc-head {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header.doc-head .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .5rem;
+  }
+  h1 {
+    font-size: clamp(1.55rem, 3vw, 2.05rem);
+    line-height: 1.25;
+    margin: 0 0 .75rem;
+    font-weight: 700;
+  }
+  .lead { color: var(--muted); margin: 0; font-size: 1.02rem; }
+  h2 {
+    margin: 2.75rem 0 1rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--line);
+    font-size: 1.45rem;
+    color: var(--accent);
+  }
+  h2:first-of-type { border-top: none; }
+  h3 { margin: 1.75rem 0 .65rem; font-size: 1.15rem; }
+  h4 { margin: 1.25rem 0 .4rem; font-size: 1.02rem; }
+  p { margin: .7rem 0; }
+  ul, ol { padding-left: 1.35rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .9em;
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 4px;
+  }
+  pre {
+    background: #1e262b;
+    color: #e8eef1;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .95rem;
+    margin: 1rem 0 1.25rem;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: .55rem .65rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: .85rem 1rem;
+    margin: 1.1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn {
+    border-left-color: var(--warn);
+    background: var(--warn-bg);
+  }
+  .callout .t {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 650;
+    font-size: .92rem;
+    margin: 0 0 .35rem;
+  }
+  .eq-box {
+    background: #f3f7f8;
+    border: 1px solid #c9dde0;
+    border-radius: 8px;
+    padding: .2rem 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  .fig {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: #fbfaf7;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: .92rem;
+  }
+  .fig .cap { color: var(--muted); margin-top: .65rem; font-size: .85rem; }
+  .ascii {
+    white-space: pre;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    overflow-x: auto;
+    margin: 0;
+  }
+  .roadmap {
+    display: grid;
+    gap: .55rem;
+    margin: 1rem 0 1.5rem;
+  }
+  .roadmap .step {
+    display: grid;
+    grid-template-columns: 2.2rem 1fr;
+    gap: .75rem;
+    align-items: start;
+    padding: .7rem .85rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    font-size: .92rem;
+  }
+  .roadmap .n {
+    width: 2.2rem; height: 2.2rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: .85rem;
+  }
+  footer.note {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .9rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    main { padding: 1.5rem 1.1rem 2.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <h2>目录</h2>
+  <a href="#pain">0. 牛顿法哪里痛</a>
+  <a href="#idea">1. 拉格朗日的核心念头</a>
+  <a href="#coords">2. 广义坐标</a>
+  <a href="#virtual">3. 虚位移与虚功</a>
+  <a href="#dalembert">4. 达朗贝尔原理</a>
+  <a href="#derive">5. 为什么是那一行公式</a>
+  <a href="#L">6. \(L=T-V\) 为什么减势能</a>
+  <a href="#Q">7. 广义力 \(Q_i\)</a>
+  <a href="#recipe">8. 实操配方</a>
+  <a href="#pendulum">9. 例：单摆</a>
+  <a class="l2" href="#inverted-fixed">9.1 固定支点倒立摆（偏导写全）</a>
+  <a href="#wip">10. 例：轮式倒立摆</a>
+  <a class="l2" href="#wip-partials">10.6 偏导写全</a>
+  <a href="#vs-newton">11. 与牛顿法对照</a>
+  <a href="#traps">12. 易错点</a>
+  <a href="#faq">13. FAQ</a>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="eyebrow">FishBot · 建模手法补课 · 配合控制思路篇</p>
+  <h1>拉格朗日动力学：为什么要写成那样</h1>
+  <p class="lead">
+    目标不是背
+    \(\frac{\mathrm{d}}{\mathrm{d}t}(\partial L/\partial\dot q_i)-\partial L/\partial q_i=Q_i\)，
+    而是回答：这行式子<strong>从哪来的直觉</strong>、每一块在替你干什么、平衡车建模时为什么大家爱用它。
+  </p>
+</header>
+
+<section id="pain">
+<h2>0. 先承认：牛顿法哪里让人痛</h2>
+<p>
+牛顿–欧拉完全正确：\(\sum F=ma\)、\(\sum\tau=I\alpha\)。但对多刚体、有约束的系统，痛点是：
+</p>
+<ul>
+  <li><strong>约束力一大堆</strong>：轴处的 \(H,V\)、地面法向、静摩擦……方程里出现，最后往往又要消掉。</li>
+  <li><strong>受力图画错就全错</strong>：漏画电机反力矩是倒立摆经典坑。</li>
+  <li><strong>坐标不直观</strong>：你真正关心的是 \(s,\theta\)，却要在直角分量里绕一大圈。</li>
+</ul>
+<p>
+拉格朗日路线的卖点可以一句话说完：
+</p>
+<div class="callout">
+  <p class="t">卖点</p>
+  <p style="margin:0">选好独立坐标（广义坐标），用能量 \(T,V\) 代替“逐力列方程”；理想约束力在虚功里自动消失，不必每次都消元。</p>
+</div>
+<p>
+它不是新物理，而是牛顿定律在“约束 + 合适坐标”下的<strong>重组写法</strong>。
+</p>
+</section>
+
+<section id="idea">
+<h2>1. 核心念头（先建立画面）</h2>
+<div class="roadmap">
+  <div class="step"><div class="n">1</div><div>系统被约束限制在某些几何形状上运动（杆长固定、轮不打滑……）。</div></div>
+  <div class="step"><div class="n">2</div><div>用尽量少的独立参数 \(q_1,\ldots,q_n\) 描述允许的位形——广义坐标。</div></div>
+  <div class="step"><div class="n">3</div><div>动能 \(T(q,\dot q)\)、势能 \(V(q)\) 用这些坐标写出来。</div></div>
+  <div class="step"><div class="n">4</div><div>定义 \(L=T-V\)。对每个 \(q_i\) 套同一模板，得到运动方程。</div></div>
+  <div class="step"><div class="n">5</div><div>非保守力（电机力矩、摩擦）通过广义力 \(Q_i\) 进入等式右边。</div></div>
+</div>
+<p>
+模板是：
+</p>
+<div class="eq-box">
+\[
+\frac{\mathrm{d}}{\mathrm{d}t}\left(\frac{\partial L}{\partial\dot q_i}\right)
+-
+\frac{\partial L}{\partial q_i}
+=
+Q_i
+\quad(i=1,\ldots,n)
+\]
+</div>
+<p>
+下文会解释：左边为什么长这样、右边 \(Q_i\) 是什么意思。
+</p>
+</section>
+
+<section id="coords">
+<h2>2. 广义坐标：把“自由度”变成符号</h2>
+
+<h3>2.1 什么叫广义</h3>
+<p>
+“广义”不是玄学，意思是：不一定是 \(x,y\)，也可以是角度、弧长、关节角……任何能唯一标定系统位形的独立参数都行。
+</p>
+
+<h3>2.2 自由度与约束</h3>
+<p>
+平面自由刚体有 3 个自由度。加一根不可伸长轻杆拴在固定点上，自由度变 1——用摆角 \(\theta\) 就够。轮式车在纯滚动下，\(s\) 与轮转角 \(\varphi\) 不独立（\(s=r\varphi\)），建模时只留一个。
+</p>
+<div class="callout warn">
+  <p class="t">第一步就决定成败</p>
+  <p style="margin:0">广义坐标选多了（不独立）→ 方程冗余或矛盾；选少了 → 描述不了运动。平面平衡车常用 \(q=(s,\theta)\)：走多远、倾多少。</p>
+</div>
+
+<h3>2.3 位形 → 直角坐标的映射</h3>
+<p>
+一旦选了 \(q\)，每个质点的直角坐标都是 \(q\) 的函数，例如倒立摆质心：
+</p>
+<div class="eq-box">
+\[
+x_M=s+l\sin\theta,\qquad y_M=l\cos\theta
+\]
+</div>
+<p>
+速度 \(\dot x_M,\dot y_M\) 用链式法则由 \(\dot s,\dot\theta\) 求出——动能就从这里来。拉格朗日法把“几何”赶在写力之前处理完。
+</p>
+</section>
+
+<section id="virtual">
+<h2>3. 虚位移与虚功：约束力退场的关键</h2>
+
+<h3>3.1 虚位移 \(\delta q\)</h3>
+<p>
+想象在<strong>某一固定时刻</strong>，系统位形做了一个与约束相容的无限小变动，但不一定是真实时间演化走过的那一步。这叫虚位移。对摆，就是 \(\delta\theta\)；对平衡车，\((\delta s,\delta\theta)\)。
+</p>
+<p>
+“虚”强调：不是 \(\mathrm{d}t\) 里真实发生的 \(\mathrm{d}q=\dot q\,\mathrm{d}t\)，而是“约束允许的任意一小搓”。
+</p>
+
+<h3>3.2 虚功</h3>
+<p>
+力在虚位移上做的功：
+</p>
+<div class="eq-box">
+\[
+\delta W = \sum_k \mathbf{F}_k\cdot\delta\mathbf{r}_k
+\]
+</div>
+
+<h3>3.3 理想约束力的虚功为零</h3>
+<p>
+光滑铰链的约束力沿不可动方向；不可伸长杆的张力沿杆、而虚位移垂直于“拉伸方向”（长度不变）……在理想约束下：
+</p>
+<div class="eq-box">
+\[
+\delta W_{\mathrm{constraint}}=0
+\]
+</div>
+<p>
+因此列能量/虚功方程时，<strong>可以假装约束力不存在</strong>——它们不贡献虚功。这正是拉格朗日比牛顿省事的几何原因。
+</p>
+<div class="fig">
+<pre class="ascii">
+  真实运动：随时间走轨迹 q(t)
+  虚位移：在同一瞬间，往约束允许的旁岔轻轻拨一下 δq
+
+  理想铰链约束力 ⊥ 允许的 δr  →  点积为 0 → 虚功 0
+</pre>
+<p class="cap">约束力仍物理存在；只是在虚功记账里为 0，不必写进最终方程。</p>
+</div>
+</section>
+
+<section id="dalembert">
+<h2>4. 达朗贝尔原理：把动力学变成“静力学模样”</h2>
+<p>
+牛顿：\(\mathbf{F}=m\mathbf{a}\)。移项：
+</p>
+<div class="eq-box">
+\[
+\mathbf{F}-m\mathbf{a}=0
+\]
+</div>
+<p>
+把 \(-m\mathbf{a}\) 看成惯性力，则“真实力 + 惯性力”平衡。对虚位移取虚功：
+</p>
+<div class="eq-box">
+\[
+\sum_k(\mathbf{F}_k-m_k\mathbf{a}_k)\cdot\delta\mathbf{r}_k=0
+\]
+</div>
+<p>
+理想约束力已在虚功中消失，剩下的 \(\mathbf{F}_k\) 是主动力（重力、电机力等）。这就是达朗贝尔–拉格朗日的出发点：<strong>动力学 = 带惯性力的虚功原理</strong>。
+</p>
+<p>
+后面所有 \(\partial L/\partial q\) 的花样，都是把上式用广义坐标重写后的结果。
+</p>
+</section>
+
+<section id="derive">
+<h2>5. 为什么最终是那一行公式（结构推导）</h2>
+<p>
+下面给<strong>结构级</strong>推导：让你看见每一项从哪冒出来。严密的分析力学证明可查教材；这里追求“写得出来的因果”。
+</p>
+
+<h3>5.1 用广义坐标表达虚功</h3>
+<p>
+主动力的虚功可写成广义力形式：
+</p>
+<div class="eq-box">
+\[
+\delta W = \sum_i Q_i\,\delta q_i
+\]
+</div>
+<p>
+其中
+</p>
+<div class="eq-box">
+\[
+Q_i=\sum_k\mathbf{F}_k\cdot\frac{\partial\mathbf{r}_k}{\partial q_i}
+\]
+</div>
+<p>
+直觉：\(Q_i\) 是“当 \(q_i\) 单独增加一点点时，主动力做了多少功 / 单位 \(\delta q_i\)”。对力矩驱动的转角，\(Q_\theta\) 往往就是力矩本身。
+</p>
+
+<h3>5.2 惯性项变成动能的导数</h3>
+<p>
+可以证明（对 \(T=\sum\frac12 m_k|\dot r_k|^2\)）：
+</p>
+<div class="eq-box">
+\[
+\sum_k m_k\mathbf{a}_k\cdot\frac{\partial\mathbf{r}_k}{\partial q_i}
+=
+\frac{\mathrm{d}}{\mathrm{d}t}\left(\frac{\partial T}{\partial\dot q_i}\right)
+-
+\frac{\partial T}{\partial q_i}
+\]
+</div>
+<p>
+粗读法：
+</p>
+<ul>
+  <li>\(\partial T/\partial\dot q_i\) 类似广义动量 \(p_i\)（速度越高，动量越大）；</li>
+  <li>\(\frac{\mathrm{d}}{\mathrm{d}t}(\partial T/\partial\dot q_i)\) 类似“动量变化率”；</li>
+  <li>\(-\partial T/\partial q_i\) 来自动能显含坐标时的科氏/离心类项（曲线坐标里运动本身就会“挤出”惯性力）。</li>
+</ul>
+
+<h3>5.3 把重力放进势能</h3>
+<p>
+若主动力里的保守力 \(\mathbf{F}=-\nabla V\)，它们对虚功的贡献等于 \(-\delta V\)，从而等价于移到左边变成 \(+\partial V/\partial q_i\) 一类项。定义
+</p>
+<div class="eq-box">
+\[
+L=T-V
+\]
+</div>
+后，保守力不必再写进 \(Q_i\)，方程变成：
+<div class="eq-box">
+\[
+\frac{\mathrm{d}}{\mathrm{d}t}\left(\frac{\partial L}{\partial\dot q_i}\right)
+-
+\frac{\partial L}{\partial q_i}
+=
+Q_i^{\mathrm{(非保守)}}
+\]
+</div>
+
+<h3>5.4 和牛顿平动式的对照记忆</h3>
+<table>
+  <tr><th>牛顿（直线）</th><th>拉格朗日（广义）</th></tr>
+  <tr><td>\(p=m\dot x\)</td><td>\(p_i=\partial L/\partial\dot q_i\)</td></tr>
+  <tr><td>\(\dot p=F\)</td><td>\(\dot p_i-\partial L/\partial q_i=Q_i\)</td></tr>
+  <tr><td>力</td><td>广义力</td></tr>
+  <tr><td>直角坐标</td><td>任意独立坐标</td></tr>
+</table>
+<p>
+多出来的 \(-\partial L/\partial q_i\)，是因为坐标弯了、或势能随 \(q\) 变；直线上自由质点且 \(V=0\) 时它为 0，退回 \(\dot p=Q\)。
+</p>
+</section>
+
+<section id="L">
+<h2>6. 为什么是 \(L=T-V\)，不是 \(T+V\)？</h2>
+<p>
+短答：这样定义，才能让保守力自动从虚功里消掉，并得到正确的重力力矩。
+</p>
+<p>
+检查单摆：\(T=\frac12 ml^2\dot\theta^2\)，取 \(V=-mgl\cos\theta\)（下垂最低）或等价约定。则
+</p>
+<div class="eq-box">
+\[
+\frac{\mathrm{d}}{\mathrm{d}t}(\partial L/\partial\dot\theta)=ml^2\ddot\theta,\quad
+\partial L/\partial\theta=-mgl\sin\theta
+\]
+（随 \(V\) 定义略有符号细节）
+</div>
+<p>
+最终得到 \(\ddot\theta+(g/l)\sin\theta=0\)。若误用 \(L=T+V\)，重力项符号会反，摆会“反重力”。所以 \(T-V\) 不是审美，是为了让 \(\partial L/\partial q\) 带上正确的恢复力。
+</p>
+<div class="callout">
+  <p class="t">能量本身</p>
+  <p style="margin:0">总机械能常写 \(E=T+V\)。拉格朗日量 \(L=T-V\) 不是“要守恒的那个能量”，而是生成运动方程的母函数。两者别混。</p>
+</div>
+</section>
+
+<section id="Q">
+<h2>7. 广义力 \(Q_i\)：右边那一项到底是什么</h2>
+
+<h3>7.1 算法</h3>
+<p>
+让系统只在 \(q_i\) 上发生虚位移 \(\delta q_i\)（其它 \(\delta q_j=0\)），算所有<strong>非保守</strong>主动力的虚功 \(\delta W\)，则
+</p>
+<div class="eq-box">
+\[
+Q_i=\frac{\delta W}{\delta q_i}
+\]
+</div>
+
+<h3>7.2 电机力矩例子</h3>
+<p>
+设轮轴力矩 \(\tau\)，纯滚动 \(s=r\varphi\)，则 \(\delta\varphi=\delta s/r\)。力矩虚功：
+</p>
+<div class="eq-box">
+\[
+\delta W=\tau\,\delta\varphi=\frac{\tau}{r}\,\delta s
+\quad\Rightarrow\quad
+Q_s=\frac{\tau}{r}
+\]
+</div>
+<p>
+若电机反力矩作用在车体俯仰上，对 \(\delta\theta\) 还有贡献，进入 \(Q_\theta\)（常为 \(-\tau\) 或视定义）。<strong>符号必须和你的 \(\theta\) 正方向、\(\tau\) 正方向一致</strong>——这是建模最大的人为约定点。
+</p>
+<p>
+因此广义力常写成 \(Q=[b_1;b_2]\tau\)，出现在 \(M_q\ddot q=\ldots+Q\) 右边——不是另假设，是虚功的线性结果。
+</p>
+<div class="callout">
+  <p class="t">对比教材：为何 \(x\) 方程右边是 \(F(t)\)、\(\theta\) 方程为 0</p>
+  <p style="margin:0">
+  力只推小车：\(Q_x=F\)，\(Q_\theta=0\)（无摆轴外力矩）。
+  轮式平衡车力矩进两通道，\(Q_\theta\) 一般<strong>不是</strong> 0。
+  </p>
+</div>
+
+<h3>7.3 哪些进 \(V\)，哪些进 \(Q\)</h3>
+<table>
+  <tr><th>力</th><th>通常放哪</th></tr>
+  <tr><td>重力、弹簧保守力</td><td>势能 \(V\)</td></tr>
+  <tr><td>电机力矩、控制力</td><td>广义力 \(Q\)</td></tr>
+  <tr><td>粘性阻尼 \(-c\dot q\)</td><td>\(Q\) 或瑞利耗散函数</td></tr>
+  <tr><td>库仑摩擦</td><td>\(Q\)（非线性，麻烦）</td></tr>
+  <tr><td>理想铰链约束力</td><td>哪都不放（虚功为 0）</td></tr>
+</table>
+</section>
+
+<section id="recipe">
+<h2>8. 实操配方（建模时按这个打勾）</h2>
+<div class="roadmap">
+  <div class="step"><div class="n">1</div><div>画机构，标明约束（杆长、纯滚动、平面运动……）。</div></div>
+  <div class="step"><div class="n">2</div><div>选独立广义坐标 \(q\)；检查自由度个数。</div></div>
+  <div class="step"><div class="n">3</div><div>写每个关键点的位置 \(\mathbf{r}(q)\)，再求导得速度。</div></div>
+  <div class="step"><div class="n">4</div><div>写 \(T\)（平动+转动），写 \(V\)（重力等）。</div></div>
+  <div class="step"><div class="n">5</div><div>\(L=T-V\)。</div></div>
+  <div class="step"><div class="n">6</div><div>对每个 \(q_i\)：算 \(\partial L/\partial\dot q_i\)、再对 \(t\) 求导；算 \(\partial L/\partial q_i\)。</div></div>
+  <div class="step"><div class="n">7</div><div>用虚功定 \(Q_i\)（力矩、阻尼）。</div></div>
+  <div class="step"><div class="n">8</div><div>代入模板，整理成 \(\mathbf{M}(q)\ddot q+\cdots=Q\)。</div></div>
+  <div class="step"><div class="n">9</div><div>需要控制时：线性化 → 状态方程 → LQR。</div></div>
+</div>
+<div class="callout">
+  <p class="t">和第 9 步的衔接</p>
+  <p style="margin:0">拉格朗日给的是第 8 步的非线性 ODE。状态方程是把 \(\ddot q\) 解出来再拆成一阶。详见 <a href="./control_systems_mental_model.html">控制思路篇</a>。</p>
+</div>
+</section>
+
+<section id="pendulum">
+<h2>9. 完整小例子：单摆（把模板跑通）</h2>
+<p>
+固定支点、轻杆长 \(l\)、末端质量 \(m\)。广义坐标：\(q=\theta\)（从下垂量起）。
+</p>
+<div class="eq-box">
+\[
+T=\tfrac12 m(l\dot\theta)^2=\tfrac12 ml^2\dot\theta^2,\qquad
+V=-mgl\cos\theta
+\]
+</div>
+<div class="eq-box">
+\[
+L=T-V=\tfrac12 ml^2\dot\theta^2+mgl\cos\theta
+\]
+</div>
+<p>
+算：
+</p>
+<div class="eq-box">
+\[
+\frac{\partial L}{\partial\dot\theta}=ml^2\dot\theta,\quad
+\frac{\mathrm{d}}{\mathrm{d}t}\Big(\frac{\partial L}{\partial\dot\theta}\Big)=ml^2\ddot\theta,\quad
+\frac{\partial L}{\partial\theta}=-mgl\sin\theta
+\]
+</div>
+<p>
+无非保守力，\(Q=0\)：
+</p>
+<div class="eq-box">
+\[
+ml^2\ddot\theta-(-mgl\sin\theta)=0
+\quad\Rightarrow\quad
+\ddot\theta+\frac{g}{l}\sin\theta=0
+\]
+</div>
+<p>
+你没有画张力，也没有在切向投影——张力作为理想约束力被虚功吃掉了。这就是“为什么大家愿意那样写”的微观体验。
+</p>
+
+<h3 id="inverted-fixed">9.1 固定支点倒立摆（偏导写全，对照 §9）</h3>
+<p>
+仍是轻杆 + 质点、支点固定，但 \(\theta\) 改为<strong>从竖直向上（直立）量起</strong>，前倾为正。
+质心坐标取：
+</p>
+<div class="eq-box">
+\[
+x=l\sin\theta,\qquad y=l\cos\theta
+\quad(\theta=0\text{ 时在最高点 }y=l)
+\]
+</div>
+<p>
+速度：\(\dot x=l\dot\theta\cos\theta\)，\(\dot y=-l\dot\theta\sin\theta\)，故
+</p>
+<div class="eq-box">
+\[
+T=\tfrac12 m(\dot x^2+\dot y^2)=\tfrac12 ml^2\dot\theta^2
+\]
+</div>
+<p>
+势能取直立最高（与下垂单摆差一个符号约定）：
+</p>
+<div class="eq-box">
+\[
+V=mgl\cos\theta
+\]
+</div>
+<div class="eq-box">
+\[
+L=T-V=\tfrac12 ml^2\dot\theta^2 - mgl\cos\theta
+\]
+</div>
+<p>
+逐步偏导（与 §9 同一套模板）：
+</p>
+<div class="eq-box">
+\[
+\frac{\partial L}{\partial\dot\theta}=ml^2\dot\theta,\qquad
+\frac{\mathrm{d}}{\mathrm{d}t}\Big(\frac{\partial L}{\partial\dot\theta}\Big)=ml^2\ddot\theta
+\]
+</div>
+<div class="eq-box">
+\[
+\frac{\partial L}{\partial\theta}= mgl\sin\theta
+\]
+</div>
+<p>
+对比下垂单摆：那里 \(L=\tfrac12 ml^2\dot\theta^2+mgl\cos\theta\)，故 \(\partial L/\partial\theta=-mgl\sin\theta\)；
+倒立时 \(V\) 前面多了一个相对的“减号进入 \(L\)”，\(\partial L/\partial\theta\) 的符号反过来。
+</p>
+<p>
+无非保守力，\(Q=0\)：
+</p>
+<div class="eq-box">
+\[
+\frac{\mathrm{d}}{\mathrm{d}t}\Big(\frac{\partial L}{\partial\dot\theta}\Big)
+-
+\frac{\partial L}{\partial\theta}
+=0
+\quad\Rightarrow\quad
+ml^2\ddot\theta - mgl\sin\theta=0
+\]
+</div>
+<div class="eq-box">
+\[
+\ddot\theta-\frac{g}{l}\sin\theta=0
+\]
+</div>
+<p>
+线性化 \(\sin\theta\approx\theta\)：\(\ddot\theta-(g/l)\theta=0\)，特征根 \(\pm\sqrt{g/l}\)，不稳定。
+<strong>模板没变，变的是 \(V\)（以及由此而来的 \(\partial L/\partial\theta\) 符号）。</strong>
+</p>
+<div class="callout">
+  <p class="t">和下垂单摆并排记</p>
+  <p style="margin:0">
+  下垂：\(\ddot\theta+(g/l)\sin\theta=0\)（恢复）。
+  倒立：\(\ddot\theta-(g/l)\sin\theta=0\)（倾覆）。
+  差就在 \(\partial L/\partial\theta\) 差一个总号。
+  </p>
+</div>
+</section>
+
+<section id="wip">
+<h2>10. 轮式倒立摆：从骨架到偏导</h2>
+<p>
+先搭 \(T,V,Q\)，再把 \(\partial L/\partial\dot q\)、\(\mathrm{d}/\mathrm{d}t\)、\(\partial L/\partial q\) 写全（固定支点倒立摆的两自由度版）。
+</p>
+
+<h3>10.1 坐标</h3>
+<div class="eq-box">
+\[
+q=(s,\theta)
+\]
+</div>
+<p>纯滚动已用于消掉轮转角自由度；\(\theta=0\) 为直立。</p>
+
+<h3>10.2 运动学（写动能前必须有）</h3>
+<div class="eq-box">
+\[
+x_M=s+l\sin\theta,\qquad y_M=l\cos\theta
+\]
+</div>
+<div class="eq-box">
+\[
+\dot x_M=\dot s+l\dot\theta\cos\theta,\qquad
+\dot y_M=-l\dot\theta\sin\theta
+\]
+</div>
+
+<h3>10.3 动能展开</h3>
+<div class="eq-box">
+\[
+T=
+\tfrac12 M(\dot x_M^2+\dot y_M^2)+\tfrac12 I\dot\theta^2
++\tfrac12 m_{\mathrm{eff}}\dot s^2
+\]
+</div>
+<p>
+把 \(\dot x_M,\dot y_M\) 代入并整理：
+</p>
+<div class="eq-box">
+\[
+T=
+\tfrac12(M+m_{\mathrm{eff}})\dot s^2
++ M l\cos\theta\,\dot s\,\dot\theta
++ \tfrac12(I+Ml^2)\dot\theta^2
+\]
+</div>
+<p>
+中间交叉项 \(M l\cos\theta\,\dot s\,\dot\theta\) 就是质量矩阵非对角元的来源。
+</p>
+<div class="callout">
+  <p class="t">动能二次型通式 · 交叉项符号</p>
+  <p style="margin:0">
+  \(T=\sum\tfrac12 m_k|\dot{\mathbf{r}}_k|^2\)，\(\mathbf{r}_k=\mathbf{r}_k(q)\) 为第 \(k\) 块质量位置；
+  \(\dot r_k\) 对 \(\dot q\) 线性 ⇒ \(T=\tfrac12\dot q^\top M_q(q)\dot q\)。
+  本约定 \(x_M=s+l\sin\theta\) 下交叉项为<strong>正号</strong>；教材写负号时先核对 \(\theta\) 零点与 \(x=s\pm l\sin\theta\)。
+  \(I\) 与 \(Ml^2\) 都是车体；轮惯量在 \(m_{\mathrm{eff}}=m_w+I_w/r^2\)。
+  教材小车 \(M\) ↔ 本仓库 \(m_{\mathrm{eff}}\)；教材摆 \(m\) ↔ 本仓库车体 \(M\)。
+  </p>
+</div>
+
+<h3>10.4 势能与拉格朗日量</h3>
+<div class="eq-box">
+\[
+V=Mgl\cos\theta,\qquad
+L=T-V
+\]
+</div>
+
+<h3>10.5 广义力（示意约定）</h3>
+<p>
+轮轴力矩 \(\tau\)：纯滚动虚功 \(\delta W=\tau\,\delta s/r\)，且电机对车体有反力矩。下文取常见约定
+</p>
+<div class="eq-box">
+\[
+Q_s=\frac{\tau}{r},\qquad Q_\theta=-\tau
+\]
+</div>
+<p>
+（不同讲义可能差总号；与仿真脚本对齐即可。）
+</p>
+
+<h3 id="wip-partials">10.6 偏导写全</h3>
+
+<h4>（1）对 \(s\) 的方程</h4>
+<div class="eq-box">
+\[
+\frac{\partial L}{\partial\dot s}
+=(M+m_{\mathrm{eff}})\dot s + M l\cos\theta\,\dot\theta
+\]
+</div>
+<div class="eq-box">
+\[
+\frac{\mathrm{d}}{\mathrm{d}t}\Big(\frac{\partial L}{\partial\dot s}\Big)
+=
+(M+m_{\mathrm{eff}})\ddot s
++ M l\cos\theta\,\ddot\theta
+- M l\sin\theta\,\dot\theta^{2}
+\]
+</div>
+<div class="eq-box">
+\[
+\frac{\partial L}{\partial s}=0
+\]
+</div>
+<p>
+故 \(\dfrac{\mathrm{d}}{\mathrm{d}t}(\partial L/\partial\dot s)-\partial L/\partial s=Q_s\)：
+</p>
+<div class="eq-box">
+\[
+(M+m_{\mathrm{eff}})\ddot s + M l\cos\theta\,\ddot\theta - M l\sin\theta\,\dot\theta^{2}
+=\frac{\tau}{r}
+\]
+</div>
+
+<h4>（2）对 \(\theta\) 的方程</h4>
+<div class="eq-box">
+\[
+\frac{\partial L}{\partial\dot\theta}
+= M l\cos\theta\,\dot s + (I+Ml^2)\dot\theta
+\]
+</div>
+<div class="eq-box">
+\[
+\frac{\mathrm{d}}{\mathrm{d}t}\Big(\frac{\partial L}{\partial\dot\theta}\Big)
+=
+M l\cos\theta\,\ddot s
+- M l\sin\theta\,\dot\theta\,\dot s
++ (I+Ml^2)\ddot\theta
+\]
+</div>
+<p>
+\(L\) 对 \(\theta\) 的显式依赖来自交叉项与 \(-V\)：
+</p>
+<div class="eq-box">
+\[
+\frac{\partial L}{\partial\theta}
+= -M l\sin\theta\,\dot s\,\dot\theta + Mgl\sin\theta
+\]
+</div>
+<p>
+代入 \(\dfrac{\mathrm{d}}{\mathrm{d}t}(\partial L/\partial\dot\theta)-\partial L/\partial\theta=Q_\theta\)。
+其中 \(-M l\sin\theta\,\dot\theta\,\dot s\) 与 \(+M l\sin\theta\,\dot s\,\dot\theta\)（来自 \(-\partial L/\partial\theta\) 里翻号）相消，得：
+</p>
+<div class="eq-box">
+\[
+M l\cos\theta\,\ddot s + (I+Ml^2)\ddot\theta - Mgl\sin\theta
+= -\tau
+\]
+</div>
+
+<h3>10.7 套模板后的形状与线性化</h3>
+<p>
+上面两式就是：
+</p>
+<div class="eq-box">
+\[
+\mathbf{M}(\theta)
+\begin{bmatrix}\ddot s\\ \ddot\theta\end{bmatrix}
++
+\mathbf{C}(\theta,\dot\theta)
++
+\mathbf{G}(\theta)
+=
+\mathbf{B}_u\,\tau
+\]
+</div>
+<p>
+直立附近 \(\theta\approx 0\)：\(\cos\theta\approx 1\)，\(\sin\theta\approx\theta\)，略去 \(\dot\theta^{2}\) 项：
+</p>
+<div class="eq-box">
+\[
+\begin{aligned}
+(M+m_{\mathrm{eff}})\ddot s + M l\ddot\theta &= \frac{\tau}{r}\\[0.3em]
+M l\ddot s + (I+Ml^2)\ddot\theta - Mgl\,\theta &= -\tau
+\end{aligned}
+\]
+</div>
+<p>
+这与理论篇里的符号线性化模型同构；再解出 \(\ddot s,\ddot\theta\) 即可拼 \(A,B\)。
+</p>
+<div class="callout">
+  <p class="t">和 §9.1 的关系</p>
+  <p style="margin:0">
+  若轴固定（\(\ddot s=0,\tau=0\)），\(\theta\) 方程退化为 \((I+Ml^2)\ddot\theta-Mgl\sin\theta=0\)；
+  点质量 \(I=0\) 时即 \(\ddot\theta-(g/l)\sin\theta=0\)，与固定支点倒立摆一致。
+  </p>
+</div>
+</section>
+
+<section id="vs-newton">
+<h2>11. 和牛顿–欧拉对照：何时用哪个</h2>
+<table>
+  <tr><th></th><th>牛顿–欧拉</th><th>拉格朗日</th></tr>
+  <tr><td>直观</td><td>力、力矩画面强</td><td>能量、坐标画面强</td></tr>
+  <tr><td>约束力</td><td>常显式出现，要消</td><td>理想约束自动消失</td></tr>
+  <tr><td>易错点</td><td>漏力、取矩点非法</td><td>坐标不独立、\(Q\) 符号、\(V\) 零点</td></tr>
+  <tr><td>适合</td><td>受力分析、估摩擦需求</td><td>多自由度、要进控制的 ODE</td></tr>
+  <tr><td>平衡车</td><td>极简模型取矩很快</td><td>完整 \(M,m,I\) 模型更干净</td></tr>
+</table>
+<div class="callout">
+  <p class="t">实用建议</p>
+  <p style="margin:0">先用牛顿极简式建立直觉（\(l\ddot\theta=g\theta-\ddot s\)）；要写进 <code>lqr_gain_design.py</code> 的完整模型时，用拉格朗日或成熟牛顿消元，二者应在线性化后给出同结构的 \(A,B\)（允许符号约定差异）。</p>
+</div>
+</section>
+
+<section id="traps">
+<h2>12. 易错点清单</h2>
+<ol>
+  <li><strong>把约束坐标也当独立 \(q\)</strong>——多方程、假自由度。</li>
+  <li><strong>\(T\) 漏转动能</strong>——轮的 \(I_w\dot\varphi^2/2\) 漏了，等效质量偏小。</li>
+  <li><strong>\(V\) 的 \(\theta\) 零点与方程符号不一致</strong>。</li>
+  <li><strong>电机反力矩没进 \(Q_\theta\)</strong>——能量上电机应对车体有反作用。</li>
+  <li><strong>非完整约束</strong>（如侧滑不可）——简单 \(L(q,\dot q)\) 可能不够，需带乘子或准坐标；平面纯滚动纵向模型通常仍可用 \(s=r\varphi\) 化成完整约束。</li>
+  <li><strong>以为拉格朗日自动处理打滑</strong>——不打滑是你建模时假定的；一旦打滑，模型失效。</li>
+</ol>
+</section>
+
+<section id="faq">
+<h2>13. FAQ</h2>
+
+<h3>Q1. 为什么要对 \(\dot q\) 偏导再对 \(t\) 全导？</h3>
+<p>
+因为广义动量 \(p=\partial L/\partial\dot q\) 本身可能还显含 \(q(t)\)（通过坐标耦合）。只写 \(\partial/\partial t\) 不够，必须用全导数 \(\frac{\mathrm{d}}{\mathrm{d}t}\)。
+</p>
+
+<h3>Q2. \(\partial L/\partial q\) 和 \(\partial L/\partial\dot q\) 有什么直觉差别？</h3>
+<p>
+对 \(\dot q\)：看“速度怎么贡献能量/动量”。对 \(q\)：看“换个位置，动能形式或势能怎么变”（离心项、重力项）。
+</p>
+
+<h3>Q3. 一定要会从达朗贝尔推导才配用吗？</h3>
+<p>
+不必每次重推。但至少经历一次单摆例子，知道约束力消失、\(L=T-V\)、\(Q\) 来自虚功——否则遇到符号纠纷时只能瞎改。
+</p>
+
+<h3>Q4. 和哈密顿方程什么关系？</h3>
+<p>
+哈密顿用 \((q,p)\) 和 \(H=T+V\)（多数机械系统），是同一力学的另一套生成方程。控制里更常见拉格朗日 → ODE → 状态空间；最优控制里的哈密顿是另一条线。现阶段可先不混。
+</p>
+
+<h3>Q5. 读完如何接到 LQR？</h3>
+<p>
+拉格朗日 → \(\ddot q=\ldots\) → 选 \(x=(q,\dot q)\) → \(\dot x=f(x,u)\) → 直立线性化得 \(A,B\) → 离散 LQR。整条链见 <a href="./lqr_balance_theory.html">LQR 理论篇</a> 与 <a href="./control_systems_mental_model.html">控制思路篇</a>。
+</p>
+</section>
+
+<footer class="note">
+  <p>文档路径：<code>docs/lagrange_dynamics_why.html</code> · 浏览器打开，需联网加载 MathJax。</p>
+  <p>配套：<a href="./control_systems_mental_model.html">控制思路</a> · <a href="./lqr_balance_theory.html">LQR 理论</a> · <a href="./lqr_study_qa.html">问答归档</a></p>
+</footer>
+</main>
+</div>
+</body>
+</html>
