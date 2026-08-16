@@ -1,3 +1,8 @@
 {
-    "specstory.cloudSync.enabled": "always"
+    "specstory.cloudSync.enabled": "always",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}",
+        "--query-driver=${env:HOME}/.platformio/packages/toolchain-xtensa-esp32/**"
+    ],
+    "C_Cpp.intelliSenseEngine": "disabled"
 }

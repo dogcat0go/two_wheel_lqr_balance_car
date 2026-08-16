@@ -2,7 +2,7 @@
  * @Author: LCOIT dogcat.let@gmail.com
  * @Date: 2026-08-03 13:59:58
  * @LastEditors: LCOIT dogcat.let@gmail.com
- * @LastEditTime: 2026-08-10 13:54:29
+ * @LastEditTime: 2026-08-16 02:26:28
  * @FilePath: /fishbot_esp32_mt_example/include/config.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -72,6 +72,23 @@ constexpr float kCurrentSensVPerA[2]   = {0.185f, 0.185f}; // V/A
 constexpr float kCurrentSign[2]        = {-1.0f, 1.0f};    // +1 = 该轮前进为正电流
 constexpr float kCurrentLpfAlpha[2]    = {0.15f, 0.15f};   // 低通；越小越稳、越滞后
 constexpr int   kCurrentZeroSamples[2] = {100, 100};       // 上电零点平均次数
+constexpr float kCurrentMaxA = 2.5f;   // 开环 |I_ref| 上限 (A)
+constexpr float kCurrentKp   = 80.0f;  // 电流 PI，%/A
+constexpr float kCurrentKi   = 160.0f;  // 电流 PI，%/(A·s)
+// 轮端有效 Kt（2026-08-14 挂重）。m 2：I_ref = τ / Kt
+constexpr float kTorquePerAmp[2] = {0.23f, 0.23f}; // N·m/A
+// 平衡仍输出 %，m 2 再换成力矩：堵转约 8% ↔ 0.3 A → τ≈0.066 → 0.008 N·m/%
+constexpr float kPctToTorque = 0.003f; // N·m per %；仅 m 2
+constexpr float kMaxTorque   = 0.40f;  // 单轮力矩饱和 (N·m)，m 2 / m 3
+constexpr float kLqrMaxSlew  = 8.0f;   // m 3 斜率 (N·m/s)
+constexpr float kLqrPosTermLimit = 0.12f; // m 3 位置项 anti-windup (N·m)
+
+// m 3：LQR 增益，单位 N·m/状态。SciPy 若 u=-Kx，此处填 -K（k_pitch>0）。
+// 未算出前保持 0；不要用 m 3 落地。
+constexpr float kLqrPitch     = 0.0f;
+constexpr float kLqrPitchRate = 0.0f;
+constexpr float kLqrPos       = 0.0f;
+constexpr float kLqrVel       = 0.0f;
 
 // ---- 执行器硬限幅 ----
 constexpr float kMaxDuty = 100.0f; // PWM 占空比上限 (%)，硬件边界层
@@ -107,7 +124,7 @@ constexpr uint32_t kCmdTimeoutMs    = 500;     // 通信断链：清速度目标
 // T_d 由 l 决定，可信；k_θ 的绝对值要除以未实测的"占空比→加速度"标度 K_a，
 // 按 K_a 的合理区间 k_θ 落在 150~730，故初值取偏保守的 200，靠 p 命令按 ×1.5 往上爬。
 // 调参时 k_θ̇ 始终跟着算：k_θ̇ = 0.022 * k_θ。
-constexpr float kPitchTrimDeg    = 3.23f;   // 机械平衡角(度)，与串口 t 同单位；内部再转 rad
+constexpr float kPitchTrimDeg    = 2.0f;   // 机械平衡角(度)，与串口 t 同单位；内部再转 rad
 constexpr float kGainPitch       = 500.0f; // k_θ,   %/rad     （前倾要正输出，>0）
 constexpr float kGainPitchRate   = 10.0f;   // k_θ̇,   %/(rad/s)
 constexpr float kGainIntegPitch  = 0.0f;  // k_iθ,  %/(rad·s)
@@ -130,14 +147,16 @@ constexpr float kGainVelToPitch  = 0.1745f; // k_ff, rad/(m/s)（=10°/(m/s)，�
 constexpr float kFfPitchLimitRad = 0.26f; // 前馈后 θ_ref 相对 trim 的限幅 (rad,≈15°)，防大 vref 顶到摔倒角
 
 // ---- 偏航 / 走直线（平衡主量之外的差速项，不进 BalanceController）----
-// az≈0 时 heading hold：锁住松开转向杆时的航向；az≠0 时只做角速度跟踪，松杆再锁新航向。
-// 航向角来自轮式里程计（短时走直够用）；角速度用陀螺 Z 阻尼。
-constexpr float kGainYaw         = 40.0f; // k_ψ,  %/rad     （串口 z）
-constexpr float kGainYawRate     = 5.0f;  // k_ψ̇, %/(rad/s) （串口 n）
+// 默认关闭。未给 a 时 u_yaw=0，避免轮速航向锁在单轮打滑时把车拧转。
+// m 1 走直需要时再串口 z 打开 heading hold；m 2 只在 |az|>eps 时跟角速度。
+constexpr float kGainYaw         = 0.0f;  // k_ψ,  %/rad     （串口 z；0=不锁航向）
+constexpr float kGainYawRate     = 5.0f;  // k_ψ̇, %/(rad/s) （串口 n；仅转向指令时用）
 constexpr float kMaxAngularRps   = 1.5f;  // 角速度目标限幅 (rad/s)
 constexpr float kYawCmdEps       = 1e-3f; // |az| 小于此视为松杆，进入 heading hold
 
 // ---- micro-ROS WiFi（与 src/main.cpp / 历史工程一致；只跑在 Core0）----
+// false：不上电 WiFi/micro-ROS，只留 USB 串口（查编码器/电流干扰时用）
+constexpr bool        kEnableWifi   = false;
 // agent 电脑 IP:PORT 须与 micro_ros_agent 监听一致；SSID/密码可改成现场热点
 constexpr const char* kWifiSsid     = "CHY";
 constexpr const char* kWifiPassword = "13705558902";

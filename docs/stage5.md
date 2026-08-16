@@ -1,4 +1,7 @@
-阶段 5 的核心不是「再写一套控制器」，而是：**把手调四项状态反馈换成由模型算出的 \(-K\)，并把输出从占空比 % 改成力矩 N·m**。结构（`BalanceController` + `vref_smooth` + `kff` + 软停 + 偏航差速）应原样保留。
+阶段 5 的核心不是「再写一套控制器」，而是：**把手调四项状态反馈换成由模型算出的力矩增益，并把 `m 2` 的 \(u\) 从占空比 % 改成 N·m**。结构（`BalanceController` + `vref_smooth` + `kff` + 软停 + 偏航差速）应原样保留。
+
+**现行部署步骤（已测 \(M,m,l\)，电流环可用）：** [`stage5_lqr_deploy.md`](stage5_lqr_deploy.md)。  
+[`stage34_gain_init_theory.md`](stage34_gain_init_theory.md) 只解释手调 **%** 增益，其中 \(l=0.012\) 已过时；不要把 500/10/10/20 当 LQR 的 \(K\)。
 
 下面按「先标定、再算 K、最后换增益」给出可执行流程。
 
@@ -28,11 +31,11 @@
 | **A. 电流传感（推荐，你正打算走）** | 加装电流传感器，\(\tau=K_t I\)，再上电流内环 | **[`stage5_current_torque_plan.md`](stage5_current_torque_plan.md)** · SOP **[`current_to_torque_calibration_sop.md`](current_to_torque_calibration_sop.md)** |
 | B. 无电流电压前馈 | 暂不加传感，开环 τ→PWM | [`tau_pwm_calibration_sop.md`](tau_pwm_calibration_sop.md) |
 
-**路径 A（有电流）顺序：**
+**路径 A（有电流）顺序（2026-08-14：P0～P2 已过，细节 [`stage5_current_torque_plan.md`](stage5_current_torque_plan.md)）：**
 
 ```text
-P0 选型接线 → P1 电流通道标定 → P2 挂重 Kt
-    → P3 观测→电流PI→τ接口 → P4 物理参数 + 离散 LQR + A/B
+P0✅ 接线 → P1⚠ 电流（外接表跳过）→ P2✅ 挂重 Kt=0.23/0.22
+    → P3 停转重校零 + m0 电流PI（C1）→ 平衡改 N·m → P4 物理参数 + 离散 LQR
 ```
 
 **路径 B（无电流）顺序：**
@@ -80,8 +83,8 @@ P0 选型接线 → P1 电流通道标定 → P2 挂重 Kt
 主文档：**[`stage5_current_torque_plan.md`](stage5_current_torque_plan.md)**
 
 ```text
-Gate H 接线 → Gate I 电流准 → Gate Kt-I 挂重标 Kt
-  → 刀1 只观测 τ̂ → 刀2 电流 PI → 刀3 输出改 N·m
+Gate H✅ → Gate I⚠（无外接表）→ Gate Kt-I✅ 挂重 0.23/0.22
+  → 停转重校零 + m0 电流 PI（C1）→ 平衡输出改 N·m → LQR
 ```
 
 电压前馈全套 SOP **降级为可选**（\(R/K_b\) 仅作电流环前馈/排障）。
@@ -165,19 +168,19 @@ LQR 只换四项反馈增益。
 
 ---
 
-## 8. 建议你「下周」的执行清单（很具体）
+## 8. 建议你「下周」的执行清单（2026-08-14）
 
-1. **先定路径**：走电流传感 → 按 [`stage5_current_torque_plan.md`](stage5_current_torque_plan.md) 做 P0 选型/接线  
-2. **电流准了再挂重**：Gate I → Gate Kt-I，冻结 \(K_t\)（不要先写 LQR）  
-3. **固件三刀**：观测 \(\hat\tau\) → 电流 PI → 输出改 N·m  
-4. **同期**：称重 + 量 \(l\)  
-5. **力矩链路通了**：仿真侧重跑 `lqr_gain_design.py`，A/B 手调 vs LQR  
+P0～P2 已过（\(K_t\) 见 SOP）。按 [`stage5_current_torque_plan.md`](stage5_current_torque_plan.md) §5 / §10：
 
-若暂不装电流传感器，才退回 [`tau_pwm_calibration_sop.md`](tau_pwm_calibration_sop.md)。
+1. 停转重校零（静止须 ±0.1 A）  
+2. \(K_t\) 写入 `config.h`；`m 0` 做 200 Hz 电流 PI；架空 `er 0.4` 过 C1  
+3. 再把平衡出口改 N·m（手调，先不换 LQR）  
+4. 同期称 \(M,m\)、复核 \(l\)  
+5. C3 能站后再离线算 \(K\)、A/B  
 
 ---
 
 ## 一句话结论
 
-**现在可以「开始阶段 5」——有电流时起点是传感与 \(K_t\)，不是 LQR 求解器。**  
-阶段 4 结构已与 LQR 同构；阶段 5 工作量在 **力矩执行器（电流环优先）+ 实测模型 + 离线 \(K\) + 换增益对比**。
+植物理已测、电流环 `m 2` 能站：下一刀是 **离线离散 LQR（N·m）+ `m 2` 去掉 `kPctToTorque`**，见 [`stage5_lqr_deploy.md`](stage5_lqr_deploy.md)。  
+摩擦与斜坡前馈不做。阶段 3/4 的 `%` 增益文档只作手调对照，不参与填 \(K\)。

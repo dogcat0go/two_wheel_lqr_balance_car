@@ -9,6 +9,8 @@ sections: true
 
 > 回答：\(k_\theta,k_{\dot\theta}\)（阶段 3）和 \(k_{\dot s},k_s\)（阶段 4）第一次填多少、落在什么区间、凭什么。
 >
+> **单位是占空比 %。** 阶段 5 LQR 的 \(K\) 是 N·m，几何已改测（\(l=0.0204\,\mathrm{m}\)，不是下文的 0.012）。部署路径：[**`stage5_lqr_deploy.md`**](stage5_lqr_deploy.md)。
+>
 > - 调参步骤：[`stage3_balance_tuning.md`](stage3_balance_tuning.md)、[`stage4_velocity_loop.md`](stage4_velocity_loop.md)
 > - 物理方程推导（取矩 / 非惯性系）：[`balance_gain_theory.md` 附录 A](balance_gain_theory.md#derivation)
 > - 实现：`lib/BalanceControl`，同一式子填不同增益
@@ -297,13 +299,17 @@ trim 调好后 \(\delta\) 更小，\(k_{\dot s}=40\) 往往够用。根治仍是
 
 ## 5. 和 LQR / 级联的关系 {#lqr}
 
-| | 本文手调 | 级联（外环写 `ref.pitch`） | 阶段 5 LQR |
-| --- | --- | --- | --- |
-| 结构 | 单环四项状态反馈 | 外环 PD → 内环姿态 | \(u=-Kx\) 四项 |
-| 慢环设计 | \(\omega_s,\zeta_s\) → \(k_s,k_{\dot s}\) | \(\theta_{\mathrm{cmd}}=-k_p's-k_d'v\)，再经 \(a\approx g\theta\) | \(Q,R\) 自动分配快慢极点 |
-| 与本文关系 | — | 准稳态下 \(k_{a,*}\leftrightarrow g\cdot k'_*\) 可对照 | 手调 \(K\) 应与 \(-K_{\mathrm{LQR}}\) 同量级 |
+阶段 3/4 与 LQR **结构相同**（四项 \(u=\sum k(x-x_{\mathrm{ref}})\)），**单位不同**：
 
-阶段 3/4 拧出的数是阶段 5 的基线：差一个数量级先查单位 / \(K_a\) / \(l\)，别先怪求解器。
+| | 本文手调 | 阶段 5 LQR（现行） |
+| --- | --- | --- |
+| \(u\) | `%`（`m 2` 再乘 `kPctToTorque`） | N·m → `applyTorque` |
+| \(k\) 怎么来 | 加速度域 PD / 时标分离，再除未精测的 \(K_a\) | 实测 \(M,m,l\) + 离散 DARE |
+| 数值 | 如 \(k_\theta=500\)（%/rad） | 不能和 500 比大小；见 [`stage5_lqr_deploy.md`](stage5_lqr_deploy.md) |
+
+下文 \(\lambda=\sqrt{g/l}\)、\(T_d=0.022\) 按旧 \(l=0.012\)。新车 \(l=0.0204\) 只用于 LQR 植物理，不要用本文公式把 LQR 的 N·m 增益「换算回 500」。
+
+级联（外环写 `ref.pitch`）仍可对照准稳态 \(k_{a,*}\leftrightarrow g\cdot k'_*\)，与力矩 LQR 是另一条设计路径。
 
 ---
 

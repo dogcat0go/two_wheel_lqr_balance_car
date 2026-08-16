@@ -280,6 +280,7 @@ MathJax = {
   <a class="l2" href="#lagrange">4.3 拉格朗日</a>
   <a class="l2" href="#linear-model">4.4 线性化模型</a>
   <a href="#state">5. 状态方程</a>
+  <a class="l2" href="#expAt">5.2.1 为何解是 \(e^{\lambda t}\)</a>
   <a href="#quad">6. 二次型</a>
   <a href="#lqr">7. LQR 基础</a>
   <a class="l2" href="#u-star">7.2.1 \(u^\star\) 全推导</a>
@@ -763,6 +764,22 @@ T = \underbrace{\tfrac12 M(\dot x_M^2+\dot y_M^2) + \tfrac12 I\dot\theta^2}_{\te
 + \underbrace{\tfrac12 m_{\mathrm{eff}}\dot s^2}_{\text{轮}}
 \]
 </div>
+<p>其中 \(x_M=s+l\sin\theta\) 等。展开后 \(T\) 含 \(\dot s^2,\dot\theta^2,\dot s\dot\theta\) 交叉项，即质量矩阵非对角元的来源。</p>
+<p>
+<strong>\(m_{\mathrm{eff}}\) 不是转动惯量乘角速度。</strong>
+\(I_w\dot\varphi\) 是角动量。轮动能是平动加自旋，纯滚动 \(\dot\varphi=\dot s/r\)：
+</p>
+<div class="eq-box">
+\[
+\tfrac12 I_w\dot\varphi^2
+=\tfrac12\Bigl(\frac{I_w}{r^2}\Bigr)\dot s^2
+\quad\Rightarrow\quad
+m_{\mathrm{eff}}=m_w+\frac{I_w}{r^2}
+\]
+</div>
+<p>
+单位 kg。两轮的 \(m_{\mathrm{eff}}\) 相加才是模型里的 \(m\)。圆盘近似时 \(m_{\mathrm{eff}}\approx 1.5\,m_w\)。推导见 §3.3。
+</p>
 <p>势能：</p>
 <div class="eq-box">
 \[
@@ -873,8 +890,34 @@ Ml & I+Ml^2
 \]
 </div>
 <p>
-\(\mathbf{M}_q^{-1}\) 存在当 \(\det\mathbf{M}_q=(M+m)(I+Ml^2)-(Ml)^2>0\)，物理上总成立。由此读出 \(\ddot\theta\) 对 \(\theta\) 的开环系数（应导致不稳定）以及 \(\ddot\theta,\ddot s\) 对 \(\tau\) 的输入系数。
+\(\det\mathbf{M}_q=(M+m)(I+Ml^2)-(Ml)^2\)。<strong>\(\det>0\) 只表示质量矩阵可逆</strong>（动能正定，惯量矩阵正定），不是开环系数，也不表示稳定或不稳定。
 </p>
+<p>
+开环（\(\tau=0\)）时 \(\ddot\theta=a_{21}\theta\)，而
+\(a_{21}=(M+m)Mgl/\det\)。
+分子、分母都为正，故 \(a_{21}>0\)：\(\theta\) 与 \(\ddot\theta\) 同号，直立会自己倒——这才是“开环不稳定”。\(\det\) 只出现在分母里，把加速度的大小定下来。对 \(\tau\) 的系数是 \(b_2,b_4\)，见下一小节展开。
+</p>
+<div class="callout">
+  <p class="t">本车实测代入（2026-08-16）</p>
+  <p style="margin:0">
+    矩阵里的 \(I\) 是<strong>车体绕质心</strong>的俯仰惯量 \(I_{\mathrm{cm}}\)，不是 \(\tfrac12 ML^2\)（那是圆盘公式）。右下角 \(I+Ml^2\) 才是绕轮轴（平行轴）。质点起步取 \(I=0\)。
+  </p>
+  <p style="margin:0.6em 0 0">
+    \(M=0.70\,\mathrm{kg}\)，\(m=0.090\,\mathrm{kg}\)（两轮、转子=0），\(l=0.0204\,\mathrm{m}\)，\(r=0.0375\,\mathrm{m}\)，\(g=9.81\)。
+    分段 \(I_{\mathrm{cm}}\approx\sum m_i(h_i-l)^2=5.63\times10^{-4}\,\mathrm{kg\cdot m^2}\)；第一次 LQR 仍建议 \(I=0\)。
+  </p>
+  <p style="margin:0.6em 0 0">\(I=0\) 时：</p>
+\[
+\mathbf{M}_q=
+\begin{bmatrix}
+0.790 & 0.0143 \\
+0.0143 & 2.91\times10^{-4}
+\end{bmatrix},\quad
+Mgl=0.140,\quad
+\frac{1}{r}=26.7
+\]
+  <p style="margin:0.6em 0 0">若改用分段 \(I_{\mathrm{cm}}\)，仅右下角变为 \(I+Ml^2=8.55\times10^{-4}\)。详细见 <code>docs/stage5_physical_params_table.md</code> §4。</p>
+</div>
 
 <h3>4.6 从二阶式到一阶状态方程</h3>
 <p>选状态（与本仓库一致）：
@@ -890,7 +933,7 @@ Ml & I+Ml^2
   <p class="t">状态顺序必须与 \(K\) 向量对齐</p>
   <p style="margin:0">固件填的是 \(k_\theta,k_{\dot\theta},k_s,k_{\dot s}\)。仿真脚本若输出 \(K=[k_s,k_\theta,\ldots]\)，移植时要重排，否则相当于把位置增益打到角度通道——车会直接炸。</p>
 </div>
-<p>由 \(\dot{\mathbf{x}}=\mathbf{A}x+\mathbf{B}u\)，\(u=\tau\)：</p>
+<p>由 \(\dot{\mathbf{x}}=\mathbf{A}x+\mathbf{B}u\)，\(u=\tau\)，状态取 \(\mathbf{x}=[\theta,\dot\theta,s,\dot s]^\top\)：</p>
 <div class="eq-box">
 \[
 \dot{\mathbf{x}}
@@ -909,8 +952,52 @@ a_{41} & 0 & 0 & 0
 \]
 </div>
 <p>
-其中 \(a_{21}>0\) 来自重力不稳定项（倒立摆特征）；\(b_2,b_4\) 来自力矩如何耦合进角加速与线加速。精确表达式依赖 \(M,m,l,I,r\)。
+从 4.5 的 \(\mathbf{M}_q\ddot q=\mathbf{g}\,\theta+\mathbf{b}_\tau\tau\) 左乘 \(\mathbf{M}_q^{-1}\) 读出加速度。令
 </p>
+<div class="eq-box">
+\[
+\Delta=\det\mathbf{M}_q=(M+m)(I+Ml^{2})-(Ml)^{2}
+\]
+</div>
+<p>
+\(\mathbf{M}_q^{-1}=\dfrac{1}{\Delta}\begin{bmatrix}I+Ml^{2}&-Ml\\-Ml&M+m\end{bmatrix}\)。重力只进 \(\ddot\theta,\ddot s\) 对 \(\theta\) 的通道（即 \(a_{21},a_{41}\)）；力矩进 \(\mathbf{B}\)：
+</p>
+<div class="eq-box">
+\[
+\begin{aligned}
+a_{21}&=\frac{(M+m)\,Mgl}{\Delta}
+=\text{（}\ddot\theta\text{ 对 }\theta\text{）}\\[0.6em]
+a_{41}&=\frac{-(Ml)\,Mgl}{\Delta}
+=-\frac{M^{2}gl^{2}}{\Delta}
+=\text{（}\ddot s\text{ 对 }\theta\text{）}\\[0.6em]
+b_{2}&=\frac{-(Ml/r+M+m)}{\Delta},\qquad
+b_{4}=\frac{(I+Ml^{2})/r+Ml}{\Delta}
+\end{aligned}
+\]
+</div>
+<p>
+\(a_{21}>0\)：直立不稳定，前倾会越倒越快。\(a_{41}<0\)（本符号约定下）：前倾时轮轴被“甩”向后。\(b_2,b_4\) 是 \(\tau\) 如何同时改角加速与线加速。
+</p>
+<p>
+第一次 LQR 取质点 \(I=0\) 时 \(\Delta=Mml^{2}\)，只剩 \(M,m,l,g\)：
+</p>
+<div class="eq-box">
+\[
+a_{21}=\frac{(M+m)g}{ml},\qquad
+a_{41}=-\frac{Mg}{m}
+\]
+</div>
+<div class="callout">
+  <p class="t">本车数值（\(I=0\)）</p>
+  <p style="margin:0">
+    \(M=0.70\)，\(m=0.090\)，\(l=0.0204\)，\(g=9.81\)：
+    \(a_{21}\approx 4.22\times10^{3}\,\mathrm{s}^{-2}\)，
+    \(a_{41}\approx -76.3\,\mathrm{m\,s}^{-2}\)。
+    \(a_{21}\) 大是因为 \(l\) 只有约 2 cm。
+    若改用分段 \(I_{\mathrm{cm}}=5.63\times10^{-4}\)，\(\Delta\) 变大，\(a_{21}\) 降到约 \(2.4\times10^{2}\)。
+    仿真脚本若对 \(\theta\) 或 \(\tau\) 的符号不同，以脚本展开的 \(\mathbf{A}\) 为准，移植前逐项对号。
+  </p>
+</div>
 
 <h3>4.7 能量与可控性的交叉直觉</h3>
 <p>
@@ -938,9 +1025,80 @@ y=\mathbf{C}x+\mathbf{D}u
 LQR 全状态反馈假设 \(x\) 可测（或已由观测器估计）。本车：\(\theta,\dot\theta\) 来自 IMU/AHRS，\(s,\dot s\) 来自编码器积分/差分。\(\mathbf{D}\) 通常为 0。
 </p>
 
-<h3>5.3 开环极点</h3>
+<h3 id="expAt">5.2.1 为什么 \(\dot x=Ax\) 的解是一串 \(e^{\lambda t}\)</h3>
+<p>先不管输入（\(u=0\) 或已写成闭环 \(A-BK\)）。方程是常系数线性齐次 ODE：\(\dot x=Ax\)，\(x(0)=x_0\)。</p>
+
+<p><strong>一步：一维。</strong> \(\dot x=ax\) 分离变量 \(\mathrm{d}x/x=a\,\mathrm{d}t\)，积分得 \(x(t)=x_0 e^{at}\)。\(a>0\) 发散，\(a&lt;0\) 衰减。矩阵情形要把 \(A\) 变成许多个这样的标量。</p>
+
+<p><strong>二步：猜模态。</strong> 仿照一维，猜 \(x(t)=e^{\lambda t}v\)（\(v\neq 0\) 常向量）。代入 \(\dot x=Ax\)：</p>
+<div class="eq-box">
+\[
+\lambda e^{\lambda t}v = A e^{\lambda t}v
+\quad\Rightarrow\quad
+Av=\lambda v
+\]
+</div>
 <p>
-\(\mathbf{A}\) 的特征值 = 开环极点。倒立摆必有<strong>右半平面极点</strong>（不稳定）。还有接近原点的积分器（位置），对应“车会慢慢滑走”。
+\(e^{\lambda t}\) 处处不为零，约掉后就是特征值问题：\(\lambda\) 为特征值，\(v\) 为特征向量。每一个特征对 \((\lambda_i,v_i)\) 给出一条特解 \(e^{\lambda_i t}v_i\)。
+</p>
+
+<p><strong>三步：叠加。</strong> 方程线性，特解的和仍是解。若 \(A\) 可对角化（四个独立特征向量，本车开环通常可以），通解为</p>
+<div class="eq-box">
+\[
+x(t)=\sum_{i=1}^{n} c_i\, e^{\lambda_i t}\, v_i
+= V e^{\Lambda t} V^{-1} x_0
+\]
+</div>
+<p>
+系数 \(c=V^{-1}x_0\) 由初值定。矩阵形式即 \(x(t)=e^{At}x_0\)，而 \(e^{At}=V\mathrm{diag}(e^{\lambda_i t})V^{-1}\)。
+</p>
+
+<p><strong>四步：坐标说。</strong> 令 \(A=V\Lambda V^{-1}\)，\(z=V^{-1}x\)，则</p>
+<div class="eq-box">
+\[
+\dot z = V^{-1}AVz=\Lambda z
+\quad\Rightarrow\quad
+\dot z_i=\lambda_i z_i
+\quad\Rightarrow\quad
+z_i(t)=z_i(0)e^{\lambda_i t}
+\]
+</div>
+<p>
+在特征向量基底里，四个通道<strong>互不耦合</strong>，每个都是一维指数。变回原坐标，各通道按 \(v_i\) 的方向叠回去——这就是“一串 \(e^{\lambda t}\)”。
+</p>
+
+<p><strong>五步：复根。</strong> \(A\) 是实矩阵时，复特征值成对 \(\sigma\pm j\omega\)。对应解写成实形式是 \(e^{\sigma t}(\cos\omega t,\sin\omega t)\)：\(\sigma\) 管包络胀缩，\(\omega\) 管晃动频率。稳定仍只看 \(\sigma=\mathrm{Re}(\lambda)\)。</p>
+
+<p><strong>六步：不能对角化时。</strong> 若有重根且缺特征向量，出现 \(t e^{\lambda t}\) 等多项式因子。实部为正照样发散；实部为负，\(t e^{\lambda t}\) 仍趋于 0。工程上 LQR 闭环几乎总是可对角化，不必先抠 Jordan 块。</p>
+
+<p><strong>对本车开环：</strong> \(\ddot\theta=a_{21}\theta\) 就是二维子系统 \(\dot\xi=\begin{bmatrix}0&1\\a_{21}&0\end{bmatrix}\xi\)，特征多项式 \(\lambda^2-a_{21}=0\)，故 \(\lambda=\pm\sqrt{a_{21}}\)，解</p>
+<div class="eq-box">
+\[
+\theta(t)=c_+ e^{+\sqrt{a_{21}}\,t}+c_- e^{-\sqrt{a_{21}}\,t}
+\]
+</div>
+<p>
+初值稍有前倾，\(c_+\) 一般非零，正指数项几毫秒内压倒一切。加 \(u=-Kx\) 后，要把整条 \(A-BK\) 的谱都搬到 \(\mathrm{Re}(\lambda)&lt;0\)，每一个 \(c_i e^{\lambda_i t}\) 才一起衰减。
+</p>
+
+<h3>5.3 开环极点（特征值与能否站稳）</h3>
+<p>
+上一小节给出了 \(x(t)=\sum c_i e^{\lambda_i t}v_i\)。因此：
+\(\mathrm{Re}(\lambda)>0\) 该模态指数发散，车自己会倒；
+\(\mathrm{Re}(\lambda)<0\) 则衰减；
+\(\mathrm{Re}(\lambda)=0\) 则临界（纯振荡或不漂不回）。
+<strong>“能不能稳定”看的是特征值实部，不是 \(\det\mathbf{M}_q\)。</strong>
+</p>
+<p>
+本仓库这套 \(\mathbf{A}\)（§4.6）里 \(\theta\) 通道不依赖 \(s\)：开环 \(\ddot\theta=a_{21}\theta\)，特征根
+\(\lambda=\pm\sqrt{a_{21}}\)。
+\(a_{21}>0\) 故必有一个正实根（倒）和一个负实根（还能“吸”一点）。
+位置通道 \(\ddot s=a_{41}\theta\) 对 \(s\) 本身无回复，再贡献一对 \(\lambda=0\)（车可以匀速滑走）。
+本车 \(I=0\) 时 \(\sqrt{a_{21}}\approx 65\,\mathrm{rad/s}\)，开环发散时间大约十几毫秒量级。
+</p>
+<p>
+LQR 给出 \(u=-Kx\) 后，闭环是 \(\dot x=(A-BK)x\)。要看的是 \(A-BK\) 的特征值：连续时间需全部 \(\mathrm{Re}(\lambda)<0\)；固件 200 Hz 对应离散 \(x_{k+1}=A_d x_k+B_d u_k\)，则需全部 \(|\lambda|<1\)（单位圆内）。
+LQR 在 \((A,B)\) 可控、\(R\succ 0\)、\(Q\) 半正定且可检测时，保证能把开环右半平面极点搬到稳定区——这就是“算完 \(K\) 车能站”的线性理论含义。模型标度错（例如 \(u\) 还是 % 却按 N·m 算 \(K\)）时，真实闭环极点不是你算的那组，理论保证作废。详见 §7.4。
 </p>
 
 <h3>5.4 可控性</h3>

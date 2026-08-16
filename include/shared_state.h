@@ -28,11 +28,12 @@ struct ControlSnapshot {
     float    effort[2];         // 安全层之后真正下发的量（当前是占空比 %）
     float    current_a[2];      // 左右电流低通后 (A)，正 = 该轮前进
     float    current_raw_a[2];  // 本拍原始 (A)
+    float    i_ref_a[2];        // 开环电流目标 (A)；PWM 开环/平衡为 0
     float    terms[5];          // BalanceController::Term 各分量，判振源用
     uint32_t ctrl_hz;        // 实测控制频率，看有没有掉拍
     uint32_t overrun_count;  // 单周期超时次数
     uint8_t  fault;          // Safety::Fault 位掩码
-    uint8_t  mode;           // 0 = 开环, 1 = 平衡
+    uint8_t  mode;           // 0 开环, 1 PWM平衡, 2 电流+手调%, 3 电流+LQR N·m
     bool     imu_ok;
     bool     armed;          // 平衡出力使能：上电/摔倒后需 r
 };
@@ -42,8 +43,11 @@ struct CommandInput {
     uint32_t stamp_ms;     // 指令时间戳，控制环据此判断通信是否断链
     float    linear_x;     // m/s，阶段4 起作为速度目标
     float    angular_z;    // rad/s，正 = 逆时针（左慢右快）
-    float    test_effort[2]; // 开环左右占空比(%)，仅 mode 0；e 同设，el/er 分设
-    uint8_t  mode;         // 0 = 开环, 1 = 平衡
+    float    test_effort[2];   // 开环占空比(%)，mode 0 且该轮未走电流
+    float    test_current[2];  // 开环 I_ref (A)
+    uint8_t  use_current[2];   // 1 = 该轮电流 PI
+    uint32_t current_zero_seq;
+    uint8_t  mode;         // 0 开环, 1 PWM平衡, 2 电流+手调%, 3 电流+LQR N·m
     float    pitch_ref_rad;
     float    gains[5];     // 对应 BalanceController::Gains 的五个字段
     float    k_yaw;        // 航向 P，%/rad

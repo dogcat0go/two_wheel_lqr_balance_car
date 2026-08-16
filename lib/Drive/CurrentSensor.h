@@ -1,10 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
+#include "driver/adc.h"
+#include "esp_adc_cal.h"
 
 // 霍尔电流传感（硬件边界层）：ADC → 安培
 // 默认面向 ACS712-05B（±5A，灵敏度 185 mV/A）；零点上电校零，方向由 sign 收口。
 // currentRaw() = 本拍采样；current() = 一阶低通（压 PWM 纹波/噪声，闭环主用）。
+// 采样只用 adc1_get_raw，禁止控制环里 analogReadMilliVolts（会反复 pinMode(ANALOG)
+// 并改 RTC/ADC1，与 GPIO32/33 编码器和 WiFi 抢同一套外设）。
 class CurrentSensor {
 public:
     struct Params {
@@ -18,6 +22,8 @@ public:
     void init(const Params& params);
     // 电机停转时调用：采平均零点电压；上电 setup 里调一次
     void calibrateZero();
+    // 控制环内重校：无 delay，停转后调用
+    void calibrateZeroFast();
     // 每个控制周期调用一次
     void update();
 
@@ -28,8 +34,12 @@ public:
     bool  ok() const { return ok_; }
 
 private:
+    float readVoltage();
+
     Params params_{};
     bool   ok_ = false;
+    adc1_channel_t channel_{};
+    esp_adc_cal_characteristics_t chars_{};
     float  v_zero_ = 0.0f;
     float  voltage_v_ = 0.0f;
     float  current_raw_a_ = 0.0f;

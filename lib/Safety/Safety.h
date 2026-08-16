@@ -35,6 +35,7 @@ public:
     // 要人为 clearFault() 才解锁。CMD_TIMEOUT 不锁存。关闭时清掉已锁存的位。
     void setLatch(bool enabled);
     void clearFault();
+    void setEffortLimits(float max_effort, float max_slew);
 
     // 返回故障位掩码；imu_stamp_ms / cmd_stamp_ms 为对应数据的最后更新时刻
     // cmd_stamp_ms==0 视为尚未收到指令，不置 CMD_TIMEOUT（避免上电竞态误锁）

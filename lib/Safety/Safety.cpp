@@ -14,6 +14,14 @@ void Safety::clearFault()
 {
     latched_ = kOk;
     fall_since_ms_ = 0;
+    last_out_[0] = 0.0f;
+    last_out_[1] = 0.0f;
+}
+
+void Safety::setEffortLimits(float max_effort, float max_slew)
+{
+    limits_.max_effort = max_effort;
+    limits_.max_slew = max_slew;
 }
 
 uint8_t Safety::evaluate(float pitch_rad, bool imu_ok, uint32_t now_ms,
