@@ -40,7 +40,7 @@
 
 ## 2. 离线算 \(A,B,P,K\)（仿真机，不在 ESP32）
 
-本仓库无 `lqr_gain_design.py`，在仿真工程。按下面核对脚本；对不上就改脚本输入/状态顺序，不要改植物理。
+离线脚本：`python3 tools/lqr_gain_design.py`（植物理读 `include/config.h`，Q/R 读 `tools/lqr_weights.yaml`）。`--write` 把 \(k=-K_{\mathrm{sp}}\) 写回 `kLqr*`。对不上就改权重或植物理，不要改状态顺序。
 
 1. 用 \(\mathbf{M}_q\ddot q = [0;Mgl]\theta + [1/r;-1]\tau\) 得到连续 \(A,B\)，状态 **\([\theta,\dot\theta,s,\dot s]^\top\)**（与 `BalanceState` 一致）。  
    公式：[`lqr_balance_theory.html` §4.6](lqr_balance_theory.html)。
@@ -94,13 +94,16 @@ k_{\dot s}=-K_{\mathrm{sp}}[3]
 
 ---
 
-## 4. 你现在按这个做
+## 4. 你现在按这个做（K 已写入后）
 
-1. 仿真侧用 §1 参数算出 \(K_{\mathrm{sp}}\) 和闭环特征值，记状态顺序。  
-2. 把 \(k=-K_{\mathrm{sp}}\) 四项发回来（或自己写入 `config.h`）。  
-3. 改 `stage2_main` `m 2`：去掉 `%→τ` 乘子，`setLimits(kMaxTorque, …)`，Safety 同步。  
-4. 烧录：`m 2`，扶正，`r`，看 `hz=200 ovr=0`、`iref` 与 `iL/iR`、两边 `ticks`。  
-5. 太肉：加大 \(Q_\theta\) 重算；太抖：加大 \(R\)。不要先滤 `pitch_rate`。  
-6. `v` 仍靠现有 `kff`+速度项；位置项若再饱和，先 `y 0` 或减小 \(Q_s\)。
+固件：`m 1`/`m 2` 仍是手调 `%`；**`m 3` = LQR + `applyTorque`（N·m，不经 `kPctToTorque`）**。
+
+1. 确认 `config.h` 里 `kLqr*` 非 0；改过 \(M/m/l\) 或 `lqr_weights.yaml` 后重跑  
+   `python3 tools/lqr_gain_design.py --write`。  
+2. 烧录 stage2。架空或扶正：串口 `m 3` → 扶到近直立 → `r`。  
+3. 看遥测：`hz≈200`、`ovr=0`、`iref`/`iL`/`iR`、左右 `ticks` 同向跟倾角。  
+4. 静立偏爬：只拧 `t`（trim），**不要**把偏置写进 Bryson。  
+5. 太肉：减小 `lqr_weights.yaml` 的 `theta_deg`（或加大 `q_scale[0]`）重算；太抖：加大 `tau_nm`。  
+6. 跟速仍靠 `kff`（`g`）+ 速度项；位置项顶满先增大 yaml 的 `s_m` 或临时减小位置权重后重算。
 
 摩擦、斜坡前馈：阶段 6 再说。

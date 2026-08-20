@@ -2,7 +2,7 @@
  * @Author: LCOIT dogcat.let@gmail.com
  * @Date: 2026-08-03 13:59:58
  * @LastEditors: LCOIT dogcat.let@gmail.com
- * @LastEditTime: 2026-08-16 02:26:28
+ * @LastEditTime: 2026-08-21 01:46:20
  * @FilePath: /fishbot_esp32_mt_example/include/config.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -52,17 +52,28 @@ constexpr float kWheelDir[2] = {1.f, 1.f};
 // kMPerTick 已按新电机/编码器实测重标（走直线 1m 反推，约 7450 ticks/m）。
 constexpr float kMPerTick       = 0.134228e-3f; // m/tick（正值）
 constexpr float kWheelRadiusM   = 0.0375f;      // 实测轮半径 3.75cm
-constexpr float kWheelDistanceM = 0.175f;       // 轮距
+constexpr float kWheelDistanceM = 0.16f;       // 轮距
 
-// ---- 整车质量分布（阶段3 增益推导用，见 docs/balance_gain_theory.md）----
-// 电机+轮 0.515kg 基本位于轮轴高度，上层仅 0.26kg，故质心几乎贴着轮轴：
-// 质心离地约 48mm，减去轮轴高 37.5mm，l 约 12mm（区间 6~16mm）。
-// lambda = sqrt(g/l) ≈ 30 rad/s，倒塌特征时间仅 33ms —— 属于"矮而快"的摆。
-constexpr float kComHeightM = 0.012f; // 质心到轮轴，估算值；抬高电池可显著变好控
+// ---- LQR 植物理（离线 tools/lqr_gain_design.py 读取；改 M/m/l/I/r/dt 后必须重算 K）----
+// 称重：docs/stage5_physical_params_table.md（2026-08-16）。旧估算 l=0.012 已作废。
+constexpr float kBodyMassKg       = 0.70f;   // M：去轮、留电机
+constexpr float kWheelMassKg      = 0.135f;  // m：两轮合计，转子=0 含车轮得等效质量
+constexpr float kComHeightM       = 0.0204f; // l：车体质心到轮轴
+constexpr float kBodyPitchInertia = 5.63e-4f;    // I_cm；对照可改 5.63e-4
+constexpr float kGravity          = 9.81f;
+
+// m 3：LQR 增益默认值 (N·m/状态)，上电载入；串口 k/p/d/y/w 可改，断电丢失。
+// tools/lqr_gain_design.py 打印「串口：k ...」可直接粘贴；--write 只改这里的默认。
+constexpr float kLqrPitch     = 1.8511479f;
+constexpr float kLqrPitchRate = 0.096101144f;
+constexpr float kLqrPos       = 0.1472623f;
+constexpr float kLqrVel       = 0.42034732f;
 
 // ---- 测速 ----
 constexpr int   kSpeedDiffWindow = 4;    // 差分窗口(采样数)，窗口时长 = N*控制周期
 constexpr float kSpeedLpfAlpha   = 0.3f; // 速度低通系数 (0~1]，1 = 不滤波
+// 遥测用：均速的慢直流分量 v_dc += α(v-v_dc)，α=dt/τ；τ≈2s 抹掉对摇、留下净爬行
+constexpr float kVdcLpfAlpha     = 0.0025f; // 200Hz → τ=dt/α=2s（原 0.001→5s）
 
 // ---- 电流传感（ACS712-05B ±5A；下标同轮序 kLeft/kRight；须用 ADC1 脚）----
 // 灵敏度厂家标称 185 mV/A；零点上电各校一次。极性反了翻对应 kCurrentSign[i]。
@@ -80,15 +91,8 @@ constexpr float kTorquePerAmp[2] = {0.23f, 0.23f}; // N·m/A
 // 平衡仍输出 %，m 2 再换成力矩：堵转约 8% ↔ 0.3 A → τ≈0.066 → 0.008 N·m/%
 constexpr float kPctToTorque = 0.003f; // N·m per %；仅 m 2
 constexpr float kMaxTorque   = 0.40f;  // 单轮力矩饱和 (N·m)，m 2 / m 3
-constexpr float kLqrMaxSlew  = 8.0f;   // m 3 斜率 (N·m/s)
+constexpr float kLqrMaxSlew  = 32.0f;   // m 3 斜率 (N·m/s)
 constexpr float kLqrPosTermLimit = 0.12f; // m 3 位置项 anti-windup (N·m)
-
-// m 3：LQR 增益，单位 N·m/状态。SciPy 若 u=-Kx，此处填 -K（k_pitch>0）。
-// 未算出前保持 0；不要用 m 3 落地。
-constexpr float kLqrPitch     = 0.0f;
-constexpr float kLqrPitchRate = 0.0f;
-constexpr float kLqrPos       = 0.0f;
-constexpr float kLqrVel       = 0.0f;
 
 // ---- 执行器硬限幅 ----
 constexpr float kMaxDuty = 100.0f; // PWM 占空比上限 (%)，硬件边界层
@@ -98,7 +102,27 @@ constexpr float kMaxDuty = 100.0f; // PWM 占空比上限 (%)，硬件边界层
 // 再填实测门槛的 60~70%，且左右先填同一个值验证平衡，再考虑分填。
 // 见 docs/stage4_velocity_loop.md#deadband-bench
 constexpr float kMotorDeadband[2] = {5.0*0.7f, 5.0*0.7f}; // %，默认关，先恢复可站
-constexpr float kMotorCmdEps      = 3.0f;         // % 指令死区，以下不出力；补死区后需抬高打破平衡点极限环
+
+// applyRawPwm（m 0 / m 1）：|duty|<此值则 PWM=0，让静摩擦钉住
+constexpr float kMotorCmdEps      = 3.0f;         // % 指令死区；补死区后需抬高打破平衡点极限环
+// applyTorque 保险丝（分轮）；车辆进 HOLD 由 HoldPolicy 决定，stage2/5 执行器侧填 0
+constexpr float kTorqueEps        = kMotorCmdEps * kPctToTorque; // N·m/轮，3%×0.003=0.009
+
+// ---- 死区自标定（串口 b 触发；架空标定：轮子悬空，逐轮正反斜坡找起转门槛）----
+// 架空只测负载无关的电机/驱动死区；地面摩擦差是变量，交偏航积分动态补，别固化进此处。
+// 结果存 NVS(namespace motorcal, key dbL/dbR)，上电覆盖 kMotorDeadband；电压波动残差交电流环 I 项。
+constexpr float   kCalibRampPctPerTick = 0.15f; // 每拍 duty 增量 (%)，200Hz 约 30%/s
+constexpr float   kCalibDutyMaxPct     = 40.0f; // 爬升上限 (%)，到顶仍不转则记上限并报警
+constexpr int32_t kCalibTicksThresh    = 6;     // 判起转的编码器增量 (ticks，约 0.8mm)；空载灵敏
+constexpr int     kCalibSettleTicks    = 80;    // 阶段间停等拍数 (~0.4s) 让轮停稳
+constexpr float   kCalibScale          = 0.7f;  // 存库前欠补系数（宁欠勿过，防低速极限环）
+// r 前探轮（DeadbandCalibrator::requestArm）。false=发 r 直接武装，不推轮。
+constexpr bool    kPrearmEnable        = true;
+constexpr float   kPrearmProbeA        = 0.30f; // 探轮电流 (A)，两轮同向
+constexpr int     kPrearmHoldTicks     = 30;    // 最长 150ms
+constexpr int     kPrearmSettleTicks   = 10;    // 起步停等 (~50ms)
+constexpr float   kPrearmAbortPitchDeg = 12.0f; // 离 trim 超过此角不探 / 探中停
+constexpr float   kPrearmAbortOmega    = 0.8f;  // rad/s，探中角速度过大则停
 
 // ---- 控制周期（频带分离：控制环独占 Core1，通信在 Core0）----
 constexpr uint32_t kCtrlHz         = 200;
@@ -107,6 +131,9 @@ constexpr float    kCtrlDt         = 1.0f / kCtrlHz; // 固定 dt，LQR 离散�
 constexpr int      kCtrlCore       = 1;
 constexpr int      kCommCore       = 0;
 constexpr uint32_t kTelemetryMs    = 200; // 遥测打印周期
+// 上电模式：0 开环 / 1 平衡PWM / 2 平衡电流(手调%) / 3 平衡电流(LQR N·m)
+// 未 armed 时平衡模式也不出力，须扶正后发 r。试 LQR 改成 3。
+constexpr uint8_t  kBootMode       = 2;
 
 // ---- 安全层（阶段2，必须先于控制算法测通）----
 // 当前执行器接口是占空比(%)，阶段5 接 τ→PWM 后改成 N·m
@@ -124,10 +151,10 @@ constexpr uint32_t kCmdTimeoutMs    = 500;     // 通信断链：清速度目标
 // T_d 由 l 决定，可信；k_θ 的绝对值要除以未实测的"占空比→加速度"标度 K_a，
 // 按 K_a 的合理区间 k_θ 落在 150~730，故初值取偏保守的 200，靠 p 命令按 ×1.5 往上爬。
 // 调参时 k_θ̇ 始终跟着算：k_θ̇ = 0.022 * k_θ。
-constexpr float kPitchTrimDeg    = 2.0f;   // 机械平衡角(度)，与串口 t 同单位；内部再转 rad
+constexpr float kPitchTrimDeg    = 2.6f;   // 机械平衡角(度)，与串口 t 同单位；内部再转 rad
 constexpr float kGainPitch       = 500.0f; // k_θ,   %/rad     （前倾要正输出，>0）
 constexpr float kGainPitchRate   = 10.0f;   // k_θ̇,   %/(rad/s)
-constexpr float kGainIntegPitch  = 0.0f;  // k_iθ,  %/(rad·s)
+constexpr float kGainIntegPitch  = 5.63e-4f;  // k_iθ,  %/(rad·s)
 constexpr float kIntegTermLimit  = 15.0f; // 积分项限幅 (%)
 
 // ---- 阶段4 速度环/位置环（同一状态反馈里多两项，非级联）----
@@ -137,26 +164,53 @@ constexpr float kGainVel         = 20.0f;  // k_ṡ,   %/(m/s)
 constexpr float kGainPos         = 10.0f;   // k_s,   %/m（当积分用，靠限幅防 windup）
 constexpr float kPosTermLimit    = 25.0f;  // 位置项 anti-windup 限幅 (%)：饱和后停止累积 pos_ref
 constexpr float kMaxLinearMps    = 0.5f;  // 速度目标限幅 (m/s)，防手滑给过大目标
-// 速度目标斜率限幅 (m/s²)：软起步 + 软停。停止时 vref 斜坡衰减，车滑行减速，
-// pos_ref 跟着走而非急锁，消除松杆瞬间位置误差突变引起的回拉振荡。越小越软、越肉。
-constexpr float kVelSlewMps2     = 1.0f;
 
-// 速度→倾角前馈：θ_ref = trim + kff·vref，主动前倾顶过死区（docs/stage4_vel_pitch_feedforward.md）
+// 速度→倾角前馈：θ_ref = trim + kff·v_cmd。参考生成，不是反馈、不是软停。
 // 串口 g 输入 deg/(m/s)，内部转 rad；从小往上调，过大会给速瞬间猛冲。
 constexpr float kGainVelToPitch  = 0.1745f; // k_ff, rad/(m/s)（=10°/(m/s)，实车标定值）
 constexpr float kFfPitchLimitRad = 0.26f; // 前馈后 θ_ref 相对 trim 的限幅 (rad,≈15°)，防大 vref 顶到摔倒角
 
-// ---- 偏航 / 走直线（平衡主量之外的差速项，不进 BalanceController）----
-// 默认关闭。未给 a 时 u_yaw=0，避免轮速航向锁在单轮打滑时把车拧转。
-// m 1 走直需要时再串口 z 打开 heading hold；m 2 只在 |az|>eps 时跟角速度。
-constexpr float kGainYaw         = 0.0f;  // k_ψ,  %/rad     （串口 z；0=不锁航向）
-constexpr float kGainYawRate     = 5.0f;  // k_ψ̇, %/(rad/s) （串口 n；仅转向指令时用）
+// ---- 偏航 / 走直线（差速项，不进 BalanceController；补左右轮摩擦不齐）----
+// stage2：z/n 仍走 %。stage5：z 航向 P；n = 轮速差 P（k_sync），不再用陀螺 ω_z 做 D。
+constexpr float kGainYaw         = 20.0f; // k_ψ,  %/rad（stage2；0=不锁航向）
+constexpr float kGainYawRate     = 20.0f; // k_ψ̇, %/(rad/s)（stage2 的串口 n）
+constexpr float kGainYawNm       = 0.03f; // stage5 的 z，N·m/rad；0=不锁航向
+constexpr float kGainYawRateNm   = kGainYawRate * kPctToTorque; // 旧 stage5 陀螺 D，现不用
+constexpr float kGainWheelSync   = 0.5f;  // stage5 的 n：k_sync，N·m/(m/s)；串口 n 改此项
+constexpr float kGainYawIntegNm  = 0.02f; // stage5 航向积分 ki，N·m/(rad·s)；保守初值补左右摩擦差，串口 j 调
+constexpr float kYawIntegTermLimit = 0.08f; // 航向积分项限幅 (N·m)，anti-windup
 constexpr float kMaxAngularRps   = 1.5f;  // 角速度目标限幅 (rad/s)
 constexpr float kYawCmdEps       = 1e-3f; // |az| 小于此视为松杆，进入 heading hold
+constexpr float kYawErrLimitRad  = 20.0f * 0.01745329252f; // heading P：|wrap(ψ_ref-ψ)| 钳位，假航向不按 180° 拧
+
+// ---- in-position（HoldPolicy：TRACK/CONFIRM/HOLD；docs/in_position_hold.md 第1步）----
+// 位置门 pos_in<=0 关闭。enter_ticks<=0 整策略关闭。
+constexpr float kHoldThetaInDeg  = 0.4f;
+constexpr float kHoldThetaOutDeg = 0.8f;
+constexpr float kHoldOmegaIn     = 0.12f; // rad/s
+constexpr float kHoldOmegaOut    = 0.25f;
+constexpr float kHoldVelIn       = 0.02f; // m/s
+constexpr float kHoldVelOut      = 0.04f;
+constexpr float kHoldPosIn       = 0.0f;  // m；0=本步关闭
+constexpr float kHoldPosOut      = 0.06f;
+constexpr float kHoldVCmdEps     = 0.01f; // m/s
+constexpr int   kHoldEnterTicks  = 20;    // 100 ms @ 200 Hz
+// TRACK 死区前馈 Karnopp：门槛复用 vel_in/out 与 kTorqueEps；粘着+小 τ 不补
+// trim 观测：倾倒前降后升；连续 HOLD 满 10 窗且站住才 ref=pitch。
+constexpr bool  kTrimObsEnable       = false;
+constexpr int   kTrimObsPeriodTicks  = 100;   // 0.5s 看一段 Δpitch
+constexpr int   kTrimObsHoldSnapN    = 10;    // 连续 HOLD 窗数，满了且站住 → ref=pitch
+constexpr float kTrimObsStep0Deg     = 0.1f;  // 倾倒单次改 ref 上限
+constexpr float kTrimObsStepMinDeg   = 0.01f;
+constexpr float kTrimObsFallDeg      = 0.2f;  // 窗内 |Δpitch| 小于此 = 站住
+constexpr float kTrimObsAlphaMax     = 0.6f;  // hunting 入门用；HOLD 内 θ̈ 是测量不是门
+constexpr float kTrimObsAlphaLpf     = 0.02f;
+constexpr float kTrimObsLimitDeg     = 5.0f;
 
 // ---- micro-ROS WiFi（与 src/main.cpp / 历史工程一致；只跑在 Core0）----
+// true：遥测/应答经 /fishbot/log 转发，命令走 /fishbot/cmd（电脑端 tools/fishbot_wifi_bridge.py）
 // false：不上电 WiFi/micro-ROS，只留 USB 串口（查编码器/电流干扰时用）
-constexpr bool        kEnableWifi   = false;
+constexpr bool        kEnableWifi   = true;
 // agent 电脑 IP:PORT 须与 micro_ros_agent 监听一致；SSID/密码可改成现场热点
 constexpr const char* kWifiSsid     = "CHY";
 constexpr const char* kWifiPassword = "13705558902";

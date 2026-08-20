@@ -13,9 +13,9 @@ stage2 WiFi 文本桥：经 micro-ROS agent 收 /fishbot/log、发 /fishbot/cmd�
   echo 'r' > /tmp/fishbot_wifi_cmd
   echo 'v 0.1' > /tmp/fishbot_wifi_cmd
 
-也可用：
-  ros2 topic echo /fishbot/log
-  ros2 topic pub --once /fishbot/cmd std_msgs/msg/String "{data: 'r'}"
+也可用（须带 best_effort，否则与 ESP32 QoS 不匹配、收不到）：
+  ros2 topic echo --qos-reliability best_effort /fishbot/log
+  ros2 topic pub --once --qos-reliability best_effort /fishbot/cmd std_msgs/msg/String "{data: 'r'}"
 """
 from __future__ import print_function
 
@@ -30,6 +30,7 @@ from datetime import datetime
 try:
     import rclpy
     from rclpy.node import Node
+    from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
     from std_msgs.msg import String
 except ImportError:
     sys.stderr.write(
@@ -86,12 +87,21 @@ class LineLogger(object):
             self._fp = None
 
 
+# ESP32 侧 rclc_*_init_best_effort；rclpy 默认 RELIABLE，订 /fishbot/log 会直接丢包。
+_BE_QOS = QoSProfile(
+    reliability=ReliabilityPolicy.BEST_EFFORT,
+    durability=DurabilityPolicy.VOLATILE,
+    history=HistoryPolicy.KEEP_LAST,
+    depth=10,
+)
+
+
 class WifiBridge(Node):
     def __init__(self, logger, log_topic, cmd_topic):
         super().__init__("fishbot_wifi_bridge")
         self._logger = logger
-        self._pub = self.create_publisher(String, cmd_topic, 10)
-        self.create_subscription(String, log_topic, self._on_log, 10)
+        self._pub = self.create_publisher(String, cmd_topic, _BE_QOS)
+        self.create_subscription(String, log_topic, self._on_log, _BE_QOS)
 
     def _on_log(self, msg):
         self._logger.write_rx(msg.data)

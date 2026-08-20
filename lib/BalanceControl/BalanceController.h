@@ -1,3 +1,11 @@
+/*
+ * @Author: LCOIT dogcat.let@gmail.com
+ * @Date: 2026-08-05 14:29:29
+ * @LastEditors: LCOIT dogcat.let@gmail.com
+ * @LastEditTime: 2026-08-18 16:50:40
+ * @FilePath: /fishbot_esp32_mt_example/lib/BalanceControl/BalanceController.h
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 #pragma once
 
 #include <stdint.h>
@@ -54,6 +62,6 @@ private:
     BalanceState ref_{};
     float        out_abs_ = 100.0f;
     float        integ_abs_ = 20.0f;
-    float        integ_ = 0.0f; // ∫(pitch - pitch_ref) dt，rad·s
+    float        integ_ = 0.0f; // ∫(pitch - pitch_ref) dt，rad·s 积分限幅
     float        terms_[kTermCount] = {};
 };

@@ -30,16 +30,29 @@ static float test_effort[2] = {0.0f, 0.0f};
 static float test_current[2] = {0.0f, 0.0f};
 static uint8_t use_current[2] = {0, 0};
 static uint32_t current_zero_seq = 0;
-static uint8_t mode = 1; // 上电默认平衡；扶正后再上电，倒地会故障锁存，发 r 清
+#ifdef STAGE5_FIRMWARE
+static uint8_t mode = 3; // stage5 只跑 LQR；s 仍切 0 停机
+#else
+static uint8_t mode = cfg::kBootMode; // 倒地锁存后发 r 清；未 armed 仍不出力
+#endif
 static uint32_t reset_seq = 0;
+static uint32_t calib_seq = 0;
 static float pitch_ref_rad = cfg::kPitchTrimDeg * 0.0174532925f;
 static float linear_x = 0.0f;     // 串口 v 写入
 static float angular_z = 0.0f;    // 串口 a 写入
 static uint32_t telemetry_ms = cfg::kTelemetryMs;
 static float gains[5] = {cfg::kGainPitch, cfg::kGainPitchRate, cfg::kGainPos,
                          cfg::kGainVel, cfg::kGainIntegPitch};
+static float lqr_gains[4] = {cfg::kLqrPitch, cfg::kLqrPitchRate, cfg::kLqrPos,
+                             cfg::kLqrVel};
+#ifdef STAGE5_FIRMWARE
+static float k_yaw = cfg::kGainYawNm;
+static float k_yaw_rate = cfg::kGainWheelSync;
+#else
 static float k_yaw = cfg::kGainYaw;
 static float k_yaw_rate = cfg::kGainYawRate;
+#endif
+static float k_yaw_integ = cfg::kGainYawIntegNm; // stage5 航向积分 ki（串口 j）
 static float k_vff = cfg::kGainVelToPitch; // 速度→倾角前馈, rad/(m/s)；串口 g 输入 deg/(m/s)
 
 static volatile float    ros_linear_x = 0.0f;
@@ -93,13 +106,72 @@ static void applyCommandLine(const char* raw)
         mode = (uint8_t)m;
         break;
     }
-    case 'p': gains[0] = value; break;
-    case 'd': gains[1] = value; break;
-    case 'i': gains[4] = value; break;
-    case 'w': gains[3] = value; break;
-    case 'y': gains[2] = value; break;
+    case 'k': {
+        float a = 0, b = 0, c = 0, d = 0;
+        const char* rest = line.c_str() + 1;
+        if (sscanf(rest, "%f %f %f %f", &a, &b, &c, &d) != 4 &&
+            sscanf(rest, "%f,%f,%f,%f", &a, &b, &c, &d) != 4) {
+            emitLog("k needs 4 numbers: k kth komega ks kv\n");
+            return;
+        }
+        lqr_gains[0] = a;
+        lqr_gains[1] = b;
+        lqr_gains[2] = c;
+        lqr_gains[3] = d;
+        break;
+    }
+    case 'p':
+#ifdef STAGE5_FIRMWARE
+        lqr_gains[0] = value;
+#else
+        if (mode == 3) {
+            lqr_gains[0] = value;
+        } else {
+            gains[0] = value;
+        }
+#endif
+        break;
+    case 'd':
+#ifdef STAGE5_FIRMWARE
+        lqr_gains[1] = value;
+#else
+        if (mode == 3) {
+            lqr_gains[1] = value;
+        } else {
+            gains[1] = value;
+        }
+#endif
+        break;
+    case 'i':
+        if (mode != 3) {
+            gains[4] = value;
+        }
+        break;
+    case 'w':
+#ifdef STAGE5_FIRMWARE
+        lqr_gains[3] = value;
+#else
+        if (mode == 3) {
+            lqr_gains[3] = value;
+        } else {
+            gains[3] = value;
+        }
+#endif
+        break;
+    case 'y':
+#ifdef STAGE5_FIRMWARE
+        lqr_gains[2] = value;
+#else
+        if (mode == 3) {
+            lqr_gains[2] = value;
+        } else {
+            gains[2] = value;
+        }
+#endif
+        break;
     case 'z': k_yaw = value; break;
     case 'n': k_yaw_rate = value; break;
+    case 'j': k_yaw_integ = value; break; // stage5 航向积分 ki
     case 'g': k_vff = value * 0.0174532925f; break; // 输入 deg/(m/s)，存 rad/(m/s)
     case 'v':
         linear_x = clampLinear(value);
@@ -110,6 +182,10 @@ static void applyCommandLine(const char* raw)
     case 't': pitch_ref_rad = value * 0.0174532925f; break;
     case 'f': telemetry_ms = (uint32_t)(value < 20.0f ? 20.0f : value); break;
     case 'r': reset_seq++; break;
+    case 'b': // 死区自标定：架空(轮子悬空)后触发，逐轮正反斜坡找起转门槛
+        mode = 0;
+        calib_seq++;
+        break;
     case 'e':
         if (line.length() > 1 && line[1] == 'l') {
             test_effort[cfg::kLeft] = line.substring(2).toFloat();
@@ -162,17 +238,33 @@ static void applyCommandLine(const char* raw)
     }
     }
     char buf[320];
+#ifdef STAGE5_FIRMWARE
     snprintf(buf, sizeof(buf),
-             "cmd ok: %s -> m=%u kp=%.1f kd=%.3f ki=%.3f kvel=%.1f kpos=%.1f "
-             "kyaw=%.1f kn=%.1f vff=%.1fdeg/mps trim=%.2fdeg vref=%.3f aref=%.3f "
-             "eL=%.1f eR=%.1f cL=%.2fA cR=%.2fA cur=%u/%u link=%d ros=%d\n",
-             line.c_str(), mode, gains[0], gains[1], gains[4], gains[3], gains[2],
-             k_yaw, k_yaw_rate, k_vff * 57.2957795f,
-             pitch_ref_rad * 57.2957795f, linear_x, angular_z,
-             test_effort[cfg::kLeft], test_effort[cfg::kRight],
-             test_current[cfg::kLeft], test_current[cfg::kRight],
-             use_current[cfg::kLeft], use_current[cfg::kRight],
-             link_up, (int)ros_ready);
+             "cmd ok: %s -> m=%u lqr kth=%.6g kom=%.6g ks=%.6g kv=%.6g "
+             "kz=%.4g kn=%.4g kj=%.4g trim=%.2fdeg vref=%.3f aref=%.3f link=%d\n",
+             line.c_str(), mode, lqr_gains[0], lqr_gains[1], lqr_gains[2], lqr_gains[3],
+             k_yaw, k_yaw_rate, k_yaw_integ, pitch_ref_rad * 57.2957795f, linear_x, angular_z, link_up);
+#else
+    if (mode == 3) {
+        snprintf(buf, sizeof(buf),
+                 "cmd ok: %s -> m=3 lqr kth=%.6g kom=%.6g ks=%.6g kv=%.6g "
+                 "trim=%.2fdeg vref=%.3f aref=%.3f link=%d\n",
+                 line.c_str(), lqr_gains[0], lqr_gains[1], lqr_gains[2], lqr_gains[3],
+                 pitch_ref_rad * 57.2957795f, linear_x, angular_z, link_up);
+    } else {
+        snprintf(buf, sizeof(buf),
+                 "cmd ok: %s -> m=%u kp=%.1f kd=%.3f ki=%.3f kvel=%.1f kpos=%.1f "
+                 "kyaw=%.1f kn=%.1f vff=%.1fdeg/mps trim=%.2fdeg vref=%.3f aref=%.3f "
+                 "eL=%.1f eR=%.1f cL=%.2fA cR=%.2fA cur=%u/%u link=%d ros=%d\n",
+                 line.c_str(), mode, gains[0], gains[1], gains[4], gains[3], gains[2],
+                 k_yaw, k_yaw_rate, k_vff * 57.2957795f,
+                 pitch_ref_rad * 57.2957795f, linear_x, angular_z,
+                 test_effort[cfg::kLeft], test_effort[cfg::kRight],
+                 test_current[cfg::kLeft], test_current[cfg::kRight],
+                 use_current[cfg::kLeft], use_current[cfg::kRight],
+                 link_up, (int)ros_ready);
+    }
+#endif
     emitLog(buf);
 }
 
@@ -390,11 +482,25 @@ static void comm_task(void* param)
             cmd.mode = mode;
             cmd.pitch_ref_rad = pitch_ref_rad;
             cmd.reset_seq = reset_seq;
+            cmd.calib_seq = calib_seq;
             cmd.k_yaw = k_yaw;
             cmd.k_yaw_rate = k_yaw_rate;
+            cmd.k_yaw_integ = k_yaw_integ;
             cmd.k_vff = k_vff;
-            for (int i = 0; i < 5; i++) {
-                cmd.gains[i] = gains[i];
+            cmd.lqr_gains[0] = lqr_gains[0];
+            cmd.lqr_gains[1] = lqr_gains[1];
+            cmd.lqr_gains[2] = lqr_gains[2];
+            cmd.lqr_gains[3] = lqr_gains[3];
+            if (mode == 3) {
+                cmd.gains[0] = lqr_gains[0];
+                cmd.gains[1] = lqr_gains[1];
+                cmd.gains[2] = lqr_gains[2];
+                cmd.gains[3] = lqr_gains[3];
+                cmd.gains[4] = 0.0f;
+            } else {
+                for (int i = 0; i < 5; i++) {
+                    cmd.gains[i] = gains[i];
+                }
             }
             publishCommand(cmd);
         }
@@ -419,12 +525,12 @@ static void comm_task(void* param)
                          (long)s.wheel_ticks[cfg::kLeft], (long)s.wheel_ticks[cfg::kRight]);
             } else {
                 snprintf(line, sizeof(line),
-                         "m=%u arm=%u hz=%u ovr=%u fault=0x%02X%s%s%s | pitch=%.2f acc=%.2f ref=%.2f deg "
-                         "rate=%.2f ax=%.2f ay=%.2f az=%.2f | yaw=%.1f/%.1f deg wz=%.2f uy=%.1f | "
-                         "u pit=%.1f rate=%.1f pos=%.1f vel=%.1f int=%.1f | "
-                         "vref=%.3f aref=%.3f%s v=%.3f/%.3f x=%.3f/%.3f ticks=%ld/%ld "
+                         "m=%u arm=%u hold=%u hN=%u hz=%u ovr=%u fault=0x%02X%s%s%s | pitch=%.2f acc=%.2f ref=%.2f deg "
+                         "rate=%.2f ax=%.2f ay=%.2f az=%.2f | yaw=%.1f/%.1f deg wz=%.2f uy=%.1f ui=%.3f | "
+                         "u pit=%.3f rate=%.3f pos=%.3f vel=%.3f int=%.3f | "
+                         "tau=%.3f/%.3fNm vref=%.3f aref=%.3f%s v=%.3f/%.3f vdc=%.3f x=%.3f/%.3f ticks=%ld/%ld "
                          "eff=%.1f/%.1f%% iref=%.3f/%.3f iL=%.3fA iR=%.3fA\n",
-                         s.mode, (unsigned)s.armed, s.ctrl_hz, s.overrun_count, s.fault,
+                         s.mode, (unsigned)s.armed, (unsigned)s.hold, (unsigned)s.hold_n, s.ctrl_hz, s.overrun_count, s.fault,
                          (s.fault & Safety::kFall) ? " FALL" : "",
                          (s.fault & Safety::kImuLost) ? " IMU_LOST" : "",
                          (s.fault & Safety::kCmdTimeout) ? " CMD_TIMEOUT" : "",
@@ -432,14 +538,16 @@ static void comm_task(void* param)
                          s.pitch_ref_rad * 57.2957795f,
                          s.pitch_rate_rps, s.acc_g[0], s.acc_g[1], s.acc_g[2],
                          s.yaw_rad * 57.2957795f, s.yaw_ref_rad * 57.2957795f,
-                         s.yaw_rate_rps, s.u_yaw,
+                         s.yaw_rate_rps, s.u_yaw, s.yaw_integ_term,
                          s.terms[BalanceController::kTermPitch],
                          s.terms[BalanceController::kTermPitchRate],
                          s.terms[BalanceController::kTermPos],
                          s.terms[BalanceController::kTermVel],
                          s.terms[BalanceController::kTermInteg],
+                         s.tau_nm[cfg::kLeft], s.tau_nm[cfg::kRight],
                          cmd_linear, cmd_angular, ros_fresh ? "(ros)" : "",
                          s.wheel_vel_mps[cfg::kLeft], s.wheel_vel_mps[cfg::kRight],
+                         s.v_dc_mps,
                          s.wheel_pos_m[cfg::kLeft], s.wheel_pos_m[cfg::kRight],
                          (long)s.wheel_ticks[cfg::kLeft], (long)s.wheel_ticks[cfg::kRight],
                          s.effort[cfg::kLeft], s.effort[cfg::kRight],

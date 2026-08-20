@@ -22,10 +22,13 @@ struct ControlSnapshot {
     float    yaw_ref_rad;    // heading hold 参考
     float    yaw_rate_rps;   // 陀螺 Z (rad/s)
     float    u_yaw;          // 差速项 (%)：right += u_yaw, left -= u_yaw
+    float    yaw_integ_term;  // 航向积分项 (N·m)，调参观察
     float    wheel_pos_m[2];
     float    wheel_vel_mps[2];
+    float    v_dc_mps;           // 两轮均速的慢直流分量（~2s 低通）；判是否真稳态爬行
     int32_t  wheel_ticks[2]; // 原始编码器计数，标 kMPerTick 用
     float    effort[2];         // 安全层之后真正下发的量（当前是占空比 %）
+    float    tau_nm[2];         // 轮端力矩指令 (N·m)；m 2/3 有值，PWM 为 0
     float    current_a[2];      // 左右电流低通后 (A)，正 = 该轮前进
     float    current_raw_a[2];  // 本拍原始 (A)
     float    i_ref_a[2];        // 开环电流目标 (A)；PWM 开环/平衡为 0
@@ -36,6 +39,8 @@ struct ControlSnapshot {
     uint8_t  mode;           // 0 开环, 1 PWM平衡, 2 电流+手调%, 3 电流+LQR N·m
     bool     imu_ok;
     bool     armed;          // 平衡出力使能：上电/摔倒后需 r
+    uint8_t  hold;           // 0 TRACK/未武装；1 HOLD（钳位）
+    uint8_t  hold_n;         // CONFIRM 已连续拍数；HOLD 时 = enter_ticks
 };
 
 // 通信环 → 控制环（指令下行）
@@ -49,11 +54,14 @@ struct CommandInput {
     uint32_t current_zero_seq;
     uint8_t  mode;         // 0 开环, 1 PWM平衡, 2 电流+手调%, 3 电流+LQR N·m
     float    pitch_ref_rad;
-    float    gains[5];     // 对应 BalanceController::Gains 的五个字段
-    float    k_yaw;        // 航向 P，%/rad
-    float    k_yaw_rate;   // 航向 D / 角速度跟踪，%/(rad/s)
+    float    gains[5];     // m 1/2 手调 %；m 3 时与 lqr_gains 相同（兼容 stage2）
+    float    lqr_gains[4]; // 始终下发：kθ kω ks kv (N·m/状态)；串口 k 只写这里
+    float    k_yaw;        // stage2: %/rad；stage5: N·m/rad（0=不锁航向）
+    float    k_yaw_rate;   // stage2: %/(rad/s)；stage5: k_sync N·m/(m/s)
+    float    k_yaw_integ;  // stage5 航向积分 ki，N·m/(rad·s)（串口 j）
     float    k_vff;        // 速度→倾角前馈, rad/(m/s)：θ_ref = trim + k_vff·linear_x
     uint32_t reset_seq;    // 递增即视为一次复位请求（清故障锁存 + 清积分）
+    uint32_t calib_seq;    // 递增触发一次死区自标定（串口 b）
 };
 
 void publishSnapshot(const ControlSnapshot& s);

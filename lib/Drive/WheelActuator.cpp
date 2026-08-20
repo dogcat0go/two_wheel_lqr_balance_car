@@ -9,23 +9,27 @@ void WheelActuator::init(Esp32McpwmMotor* driver, const Params& params)
     driver_->attachMotor(params_.motor_id, params_.pin_a, params_.pin_b);
     integ_ = 0.0f;
     last_duty_ = 0.0f;
+    torque_rest_ = true;
 }
 
 void WheelActuator::resetCurrentLoop()
 {
     integ_ = 0.0f;
+    torque_rest_ = true;
 }
 
-float WheelActuator::compensateDeadband(float duty) const
+float WheelActuator::compensateDeadband(float duty, float dir) const
 {
     if (duty > params_.max_duty) duty = params_.max_duty;
     if (duty < -params_.max_duty) duty = -params_.max_duty;
     if (params_.deadband <= 0.0f || duty == 0.0f) {
         return duty;
     }
+    const float s = (dir > 1e-9f) ? 1.0f
+                  : (dir < -1e-9f) ? -1.0f
+                  : (duty > 0.0f ? 1.0f : -1.0f);
     const float span = params_.max_duty - params_.deadband;
-    return (duty > 0.0f ? params_.deadband : -params_.deadband) +
-           duty * span / params_.max_duty;
+    return s * params_.deadband + duty * span / params_.max_duty;
 }
 
 void WheelActuator::writePwm(float duty)
@@ -42,10 +46,11 @@ void WheelActuator::applyRawPwm(float duty)
         writePwm(0.0f);
         return;
     }
-    writePwm(compensateDeadband(duty));
+    writePwm(compensateDeadband(duty, 0.0f));
 }
 
-void WheelActuator::applyCurrent(float i_ref, float i_meas, float dt_s)
+void WheelActuator::applyCurrent(float i_ref, float i_meas, float dt_s,
+                                 bool compensate_db, float ff_dir)
 {
     if (dt_s < 1e-6f) {
         dt_s = 0.005f;
@@ -74,11 +79,29 @@ void WheelActuator::applyCurrent(float i_ref, float i_meas, float dt_s)
     if ((!sat_hi && !sat_lo) || (sat_hi && err < 0.0f) || (sat_lo && err > 0.0f)) {
         integ_ += err * dt_s;
     }
-    writePwm(compensateDeadband(duty));
+    writePwm(compensate_db ? compensateDeadband(duty, ff_dir) : duty);
 }
 
-void WheelActuator::applyTorque(float tau_nm, float i_meas, float dt_s)
+void WheelActuator::applyTorque(float tau_nm, float i_meas, float dt_s,
+                                bool compensate_db, float ff_dir)
 {
     const float kt = (params_.kt > 1e-6f) ? params_.kt : 1.0f;
-    applyCurrent(tau_nm / kt, i_meas, dt_s);
+    const float eps = params_.tau_eps;
+    if (eps > 0.0f) {
+        const float mag = fabsf(tau_nm);
+        if (torque_rest_) {
+            if (mag <= eps * 1.5f) {
+                integ_ = 0.0f;
+                writePwm(0.0f);
+                return;
+            }
+            torque_rest_ = false;
+        } else if (mag < eps) {
+            torque_rest_ = true;
+            integ_ = 0.0f;
+            writePwm(0.0f);
+            return;
+        }
+    }
+    applyCurrent(tau_nm / kt, i_meas, dt_s, compensate_db, ff_dir);
 }

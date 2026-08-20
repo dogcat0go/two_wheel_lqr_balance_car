@@ -1,0 +1,16 @@
+# 离散 LQR 的 Q/R。本体参数不写这里，从 include/config.h 读。
+# 拧完后：python3 tools/lqr_gain_design.py [--write]
+#
+# Bryson：Q_ii = 1 / x̄_i²，R = 1 / τ̄²。x̄ / τ̄ 是“可接受上限”，不是称重。
+# 太肉 → 减小 theta_deg；太抖 → 增大 tau_nm；位置顶满 → 增大 s_m。
+
+bryson:
+  theta_deg: 5    # 允许倾角
+  omega_rps: 2.0    # 允许俯仰角速度 (rad/s)
+  s_m: 1.0         # 允许位置误差；偏大 → Q_s 小，少跟 pos 抢
+  v_mps: 1.6       # 允许速度误差
+  tau_nm: 0.6      # 两轮合计日常站立出力 (N·m)
+
+# 在 Bryson 对角上再乘一截（1=不改）。状态顺序 [θ, θ̇, s, ṡ]
+q_scale: [1.0, 1.0, 1.0, 1.0]
+r_scale: 1.0

@@ -134,6 +134,8 @@ PID（`cascade_pid_backend.py`）几乎不依赖物理参数,增益是经验拧�
 
 ### 阶段 6：坡度估计器重新标定
 
+实车逐步流程：[`stage6.md`](stage6.md)（S0 冻结停车 → S1 开环喂角 → S2 标 \(c\) → S3 KF 只观测 → S4 入环 → S5 真坡）。
+
 - [ ] 仿真标定的 `c=3.916` 是仿真摩擦模型拟合值，实车滚动摩擦、轴承阻力、电机内阻完全不同，**必须重新在实车平地上做一次最小二乘标定**（方法见 [c 标定](./lqr_slope_feedforward.md#c-calibration)，直接复用流程只换数据源）
 
 **过关标准：** 平地上 `alpha_hat` 稳定在 0 附近，不随速度变化漂移。
@@ -181,7 +183,7 @@ PID（`cascade_pid_backend.py`）几乎不依赖物理参数,增益是经验拧�
 | 阶段 | 主文档 |
 | --- | --- |
 | 阶段 5 LQR 重标 | `docs/LQR_explain.md`、[动力学清单 §4](./dynamics_kinematics_checklist.md) |
-| 阶段 6 `c` 标定 | [lqr_slope_feedforward · 缺口 6](./lqr_slope_feedforward.md#c-calibration) |
+| 阶段 6 斜坡补偿 | [`stage6.md`](stage6.md)；\(c\) 推导 [缺口 6](./lqr_slope_feedforward.md#c-calibration) |
 | 阶段 7 频带分离思路 | [频带分离](./lqr_slope_feedforward.md#freq-separation) |
 | 阶段 4 参考轨迹/停车倒退 | [动力学清单 §6](./dynamics_kinematics_checklist.md)、[lqr_slope_feedforward · 缺口 4](./lqr_slope_feedforward.md#field-fixes) |
 
