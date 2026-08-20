@@ -26,6 +26,8 @@ struct ControlSnapshot {
     float    wheel_pos_m[2];
     float    wheel_vel_mps[2];
     float    v_dc_mps;           // 两轮均速的慢直流分量（~2s 低通）；判是否真稳态爬行
+    float    v_ref_mps;          // TwistRef 平滑后的线速度目标
+    float    w_ref_rps;          // TwistRef 平滑后的角速度目标
     int32_t  wheel_ticks[2]; // 原始编码器计数，标 kMPerTick 用
     float    effort[2];         // 安全层之后真正下发的量（当前是占空比 %）
     float    tau_nm[2];         // 轮端力矩指令 (N·m)；m 2/3 有值，PWM 为 0

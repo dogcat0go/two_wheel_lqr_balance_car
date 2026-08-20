@@ -169,6 +169,8 @@ constexpr float kMaxLinearMps    = 0.5f;  // 速度目标限幅 (m/s)，防手�
 // 串口 g 输入 deg/(m/s)，内部转 rad；从小往上调，过大会给速瞬间猛冲。
 constexpr float kGainVelToPitch  = 0.1745f; // k_ff, rad/(m/s)（=10°/(m/s)，实车标定值）
 constexpr float kFfPitchLimitRad = 0.26f; // 前馈后 θ_ref 相对 trim 的限幅 (rad,≈15°)，防大 vref 顶到摔倒角
+constexpr float kVelSlewMps2     = 1.0f;  // v_smooth 斜率 (m/s²)；软起/软停
+constexpr float kYawSlewRps2     = 3.0f;  // ω_smooth 斜率 (rad/s²)
 
 // ---- 偏航 / 走直线（差速项，不进 BalanceController；补左右轮摩擦不齐）----
 // stage2：z/n 仍走 %。stage5：z 航向 P；n = 轮速差 P（k_sync），不再用陀螺 ω_z 做 D。

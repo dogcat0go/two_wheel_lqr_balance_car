@@ -35,7 +35,7 @@ stage5 切 LQR 时把 stage2 的参考生成丢掉了：`cmd.k_vff` 仍下发，
 
 这和坡度补偿是同一条 `ref.pitch` / `pos_ref` 管道。\(\theta_{\mathrm{eq}}(\hat\alpha)\) 要叠在 \(k_{\mathrm{ff}}v\) 上面；S2 标 \(c\) 需要「给速就真的匀速走」。**不要先做 S1。**
 
-从 stage2 搬回三件事（仍在 `stage5_main`，不改 \(K\)）：
+从 stage2 搬回三件事（`lib/Motion/TwistRef`，不改 \(K\)）：
 
 | 项 | 做法 | 过关 |
 | --- | --- | --- |
@@ -213,4 +213,4 @@ c^\star=\frac{\sum x_i y_i}{\sum x_i^2}
 | 磁力计绝对航向 | 阶段 7 |
 | 停车从 5 cm 打到 3 cm | 已冻结 |
 
-下一步：**先把 §0.1 的参考成形搬回 stage5**，过关后再 S1 串口注入 \(\alpha\)。不要先写 KF。
+下一步：**烧 stage5，平地 `v 0.15` / `/cmd_vel` 验收 §0.1**，过关后再 S1。

@@ -10,17 +10,19 @@
 //        → ψ += (v_r-v_l)/L·dt     轮式航向（偏航 P 用）
 //        → x = {θ, ω, s, ṡ}        均值状态（LQR 用）
 //
+//   [TwistRef]  cmd_vel 参考成形（串口 v/a 与 ROS /cmd_vel 同口径）
+//        v_smooth / ω_smooth 斜率限幅；pos_ref += v_smooth·dt
+//        θ_ref = trim + TrimObs + sat(k_ff·v_smooth)
+//
 //   [LQR 共模]  不进偏航
 //        u_sum = K(x - x_ref)
-//        x_ref.pitch = trim（kTrimObsEnable 时再加 TrimObserver 偏置）；vel = v_cmd；pos 锁定
-//        观测关：ref=t。开：前倾降 ref、后倾升 ref；HOLD 连续 10 窗站住才 ref=pitch
+//        x_ref.pitch = trim + bias + k_ff·v；vel = v_smooth；pos = pos_ref
 //
-//   [偏航差速]  力矩，叠在左右轮上
-//        轮速差 P：u_sync = n·(ω_cmd·L + v_l − v_r)   （串口 n = k_sync）
+//   [YawMixer]  力矩差速，叠在左右轮上
+//        轮速差 P：u_sync = n·(ω_smooth·L + v_l − v_r)
 //        有转向 |ω_cmd|：只 u_sync，ψ_ref ← ψ
-//        松杆且 z≠0：u_yaw = z·sat(wrap(ψ_ref-ψ)) + j·∫误差 + u_sync（j 航向 I，补摩擦差）
-//        z=0：只留 u_sync
-//        单轮卡住：停积 ψ，避免假航向
+//        松杆且 z≠0：u_yaw = z·sat(wrap(ψ_ref-ψ)) + j·∫误差 + u_sync
+//        z=0：只留 u_sync；单轮卡住停积 ψ
 //
 //   [HOLD] 车辆级 in-position（HoldPolicy）：与门+确认进，或门当拍出；两轮同时 PWM=0
 //        LQR 仍每拍计算（唤醒判据）；航向 I 在 HOLD 内冻结
@@ -46,6 +48,8 @@
 #include "DeadbandCalibrator.h"
 #include "HoldPolicy.h"
 #include "TrimObserver.h"
+#include "TwistRef.h"
+#include "YawMixer.h"
 #include "Safety.h"
 #include "WheelActuator.h"
 #include "WheelSensor.h"
@@ -61,19 +65,14 @@ static Safety safety;
 static BalanceController balance;
 static HoldPolicy hold;
 static TrimObserver trim_obs;
+static TwistRef twist;
+static YawMixer yaw_mix;
 static DeadbandCalibrator calibrator;
 
 namespace {
 inline float wrapPi(float a)
 {
     return atan2f(sinf(a), cosf(a));
-}
-
-inline float clampAbs(float v, float lim)
-{
-    if (v > lim) return lim;
-    if (v < -lim) return -lim;
-    return v;
 }
 } // namespace
 
@@ -91,11 +90,7 @@ static void control_task(void* param)
     uint32_t last_zero_seq = 0;
     uint32_t last_calib_seq = 0;
     bool     armed = false;
-    float    pos_ref = 0.0f;   // LQR 位置参考：r / 退出平衡 / 刚进 HOLD 时锁当前 x
     float    yaw = 0.0f;       // 轮式 ψ
-    float    yaw_ref = 0.0f;   // 松杆航向锁存
-    float    yaw_integ = 0.0f; // 航向积分累加（补左右摩擦常值差）
-    bool     yaw_hold = true;
     bool     db_ff = true;     // Karnopp：TRACK 死区前馈使能（回差）
     float    last_tau_half = 0.0f; // 上一拍 |u_sum|/2，交给 TrimObserver 力矩门
 
@@ -163,10 +158,8 @@ static void control_task(void* param)
             actuators[cfg::kLeft].resetCurrentLoop();
             actuators[cfg::kRight].resetCurrentLoop();
             hold.reset();
-            pos_ref = x.pos;
-            yaw_ref = yaw;
-            yaw_integ = 0.0f;
-            yaw_hold = true;
+            twist.reset(x.pos);
+            yaw_mix.reset(yaw);
             if (got_reset) {
                 armed = false;
                 calibrator.requestArm(x.pitch - cmd.pitch_ref_rad, x.pitch_rate);
@@ -204,13 +197,18 @@ static void control_task(void* param)
         if (!balancing) {
             balance.reset();
             hold.reset();
-            pos_ref = x.pos;
-            yaw_ref = yaw;
-            yaw_integ = 0.0f;
-            yaw_hold = true;
             last_tau_half = 0.0f;
             db_ff = true;
         }
+
+        const TwistRef::Output tr = twist.update({
+            .v_cmd = v_cmd,
+            .w_cmd = w_cmd,
+            .pos = x.pos,
+            .k_pos = cmd.lqr_gains[2],
+            .k_ff = cmd.k_vff,
+            .active = balancing,
+        });
 
         const float trim_bias = trim_obs.update({
             .balancing = balancing,
@@ -223,11 +221,11 @@ static void control_task(void* param)
             .tau_half = last_tau_half,
         });
 
-        // x_ref：trim；观测开时再加偏置；位置参考保持锁存值
+        // x_ref：trim + 观测偏置 + 速度倾角前馈；位置随 v_smooth 积分
         BalanceState ref{};
-        ref.pitch = cmd.pitch_ref_rad + trim_bias;
-        ref.vel   = v_cmd;
-        ref.pos   = pos_ref;
+        ref.pitch = cmd.pitch_ref_rad + trim_bias + tr.pitch_ff;
+        ref.vel   = tr.v;
+        ref.pos   = tr.pos_ref;
         balance.setRef(ref);
 
         float balance_u = 0.0f; // 两轮力矩之和
@@ -241,51 +239,31 @@ static void control_task(void* param)
             .e_theta = x.pitch - ref.pitch,
             .omega = x.pitch_rate,
             .vel = x.vel,
-            .e_pos = x.pos - pos_ref,
+            .e_pos = x.pos - tr.pos_ref,
             .tau_half = 0.5f * fabsf(balance_u),
             .v_cmd = v_cmd,
             .w_cmd = w_cmd,
             .allow = balancing,
         });
         if (hold.justEntered()) {
-            pos_ref = x.pos; // 停在这里；避免 k_s 继续拽回 r 的原点
+            twist.reset(x.pos);
         }
 
-        // ---- 偏航差速：不进 LQR；P=航向误差，I=航向积分(补摩擦差)，D=轮速差 k_sync（串口 n）----
-        const float yaw_rate = ahrs.yawRate();
-        float u_yaw = 0.0f;
-        float u_i = 0.0f;
-        if (balancing) {
-            const bool turn_cmd = fabsf(w_cmd) >= cfg::kYawCmdEps;
-            float u_z = 0.0f;
-            if (turn_cmd) {
-                yaw_hold = false;
-                yaw_ref = yaw;
-                yaw_integ = 0.0f; // 转向时不累积
-            } else if (fabsf(cmd.k_yaw) > 1e-6f) {
-                if (!yaw_hold) {
-                    yaw_ref = yaw;
-                    yaw_integ = 0.0f; // 刚进 hold，从零积
-                    yaw_hold = true;
-                }
-                const float e_yaw = clampAbs(wrapPi(yaw_ref - yaw), cfg::kYawErrLimitRad);
-                u_z = cmd.k_yaw * e_yaw;
-                // 航向积分：补左右摩擦常值差；单轮卡死冻结防假积分；限幅 anti-windup
-                if (!one_stuck && cmd.k_yaw_integ > 1e-9f && !hold.holding()) {
-                    yaw_integ += e_yaw * cfg::kCtrlDt;
-                    yaw_integ = clampAbs(yaw_integ, cfg::kYawIntegTermLimit / cmd.k_yaw_integ);
-                }
-                u_i = clampAbs(cmd.k_yaw_integ * yaw_integ, cfg::kYawIntegTermLimit);
-            } else {
-                yaw_hold = false;
-                yaw_ref = yaw;
-                yaw_integ = 0.0f;
-            }
-            const float w_ref = turn_cmd ? w_cmd : 0.0f;
-            const float u_sync = cmd.k_yaw_rate *
-                (w_ref * cfg::kWheelDistanceM + v_l - v_r);
-            u_yaw = clampAbs(u_z + u_i + u_sync, cfg::kMaxTorque);
-        }
+        const YawMixer::Output ym = yaw_mix.update({
+            .w_cmd = w_cmd,
+            .w_ref = tr.w,
+            .yaw = yaw,
+            .v_l = v_l,
+            .v_r = v_r,
+            .k_yaw = cmd.k_yaw,
+            .k_sync = cmd.k_yaw_rate,
+            .k_integ = cmd.k_yaw_integ,
+            .active = balancing,
+            .holding = hold.holding(),
+            .one_stuck = one_stuck,
+        });
+        const float u_yaw = ym.u_yaw;
+        const float u_i = ym.u_i;
 
         // ---- 执行：共模/2 ± 差速 → Safety → Karnopp 死区门 → 电流环 ----
         if (cmd.current_zero_seq != last_zero_seq) {
@@ -371,11 +349,13 @@ static void control_task(void* param)
         snap.acc_g[1] = ahrs.accY();
         snap.acc_g[2] = ahrs.accZ();
         snap.yaw_rad = yaw;
-        snap.yaw_ref_rad = yaw_ref;
-        snap.yaw_rate_rps = yaw_rate;
+        snap.yaw_ref_rad = ym.yaw_ref;
+        snap.yaw_rate_rps = ahrs.yawRate();
         snap.u_yaw = u_yaw;
         snap.yaw_integ_term = u_i;
         snap.v_dc_mps = trim_obs.vDc();
+        snap.v_ref_mps = tr.v;
+        snap.w_ref_rps = tr.w;
         snap.current_a[cfg::kLeft] = current_sensors[cfg::kLeft].current();
         snap.current_a[cfg::kRight] = current_sensors[cfg::kRight].current();
         snap.current_raw_a[cfg::kLeft] = current_sensors[cfg::kLeft].currentRaw();
@@ -473,6 +453,24 @@ void setup()
     });
     balance.setLimits(2.0f * cfg::kMaxTorque, 0.0f);
     hold.setLimits(HoldPolicy::robotLimits(true));
+    twist.setParams({
+        .dt = cfg::kCtrlDt,
+        .v_slew = cfg::kVelSlewMps2,
+        .w_slew = cfg::kYawSlewRps2,
+        .v_max = cfg::kMaxLinearMps,
+        .w_max = cfg::kMaxAngularRps,
+        .v_eps = cfg::kHoldVCmdEps,
+        .ff_limit = cfg::kFfPitchLimitRad,
+        .pos_term_limit = cfg::kLqrPosTermLimit,
+    });
+    yaw_mix.setParams({
+        .dt = cfg::kCtrlDt,
+        .track = cfg::kWheelDistanceM,
+        .w_eps = cfg::kYawCmdEps,
+        .yaw_err_lim = cfg::kYawErrLimitRad,
+        .integ_lim = cfg::kYawIntegTermLimit,
+        .tau_max = cfg::kMaxTorque,
+    });
     trim_obs.setParams({
         .enable = cfg::kTrimObsEnable,
         .vdc_alpha = cfg::kVdcLpfAlpha,
@@ -517,6 +515,7 @@ void setup()
 
     Serial.println("up: stage5 LQR | arm=0 | hold upright near trim, send r");
     Serial.println("hint: k kth komega ks kv (N.m); z heading P; n wheel-sync k_sync; j heading I");
+    Serial.println("hint: v <m/s> a <rad/s> (or ROS /cmd_vel); g <deg/(m/s)> k_ff");
     Serial.println("hint: s=stop; after s send m 3 then r (arm); b=deadband calib");
     Serial.printf("deadband: L=%.2f%% R=%.2f%% (NVS or default)\n",
                   actuators[cfg::kLeft].deadband(), actuators[cfg::kRight].deadband());

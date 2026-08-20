@@ -545,7 +545,7 @@ static void comm_task(void* param)
                          s.terms[BalanceController::kTermVel],
                          s.terms[BalanceController::kTermInteg],
                          s.tau_nm[cfg::kLeft], s.tau_nm[cfg::kRight],
-                         cmd_linear, cmd_angular, ros_fresh ? "(ros)" : "",
+                         s.v_ref_mps, s.w_ref_rps, ros_fresh ? "(ros)" : "",
                          s.wheel_vel_mps[cfg::kLeft], s.wheel_vel_mps[cfg::kRight],
                          s.v_dc_mps,
                          s.wheel_pos_m[cfg::kLeft], s.wheel_pos_m[cfg::kRight],
