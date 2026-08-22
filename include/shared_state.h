@@ -43,6 +43,10 @@ struct ControlSnapshot {
     bool     armed;          // 平衡出力使能：上电/摔倒后需 r
     uint8_t  hold;           // 0 TRACK/未武装；1 HOLD（钳位）
     uint8_t  hold_n;         // CONFIRM 已连续拍数；HOLD 时 = enter_ticks
+    float    alpha_inj_rad;  // 串口 q，开环坡角
+    float    sin_eff;        // gain·sin(α_inj)
+    float    theta_eq_rad;   // K_EQ·sin_eff，已叠进 pitch_ref
+    float    tau_ff;         // MGR·sin_eff，叠在 LQR 之和上
 };
 
 // 通信环 → 控制环（指令下行）
@@ -62,6 +66,8 @@ struct CommandInput {
     float    k_yaw_rate;   // stage2: %/(rad/s)；stage5: k_sync N·m/(m/s)
     float    k_yaw_integ;  // stage5 航向积分 ki，N·m/(rad·s)（串口 j）
     float    k_vff;        // 速度→倾角前馈, rad/(m/s)：θ_ref = trim + k_vff·linear_x
+    float    alpha_inj_rad; // 串口 q，开环坡角 (rad)；0=补偿关
+    float    slope_gain;    // 串口 h，0~1；两半同乘
     uint32_t reset_seq;    // 递增即视为一次复位请求（清故障锁存 + 清积分）
     uint32_t calib_seq;    // 递增触发一次死区自标定（串口 b）
 };

@@ -17,6 +17,7 @@ public:
         float sign;                // +1/-1，前进为正电流
         float lpf_alpha;           // 一阶低通 (0~1]，1 = 不滤波
         int   zero_samples;        // calibrateZero() 平均采样数
+        float zero_track_alpha; // 在线零点跟踪系数；0=关（不填=0）
     };
 
     void init(const Params& params);
@@ -24,8 +25,9 @@ public:
     void calibrateZero();
     // 控制环内重校：无 delay，停转后调用
     void calibrateZeroFast();
-    // 每个控制周期调用一次
-    void update();
+    // 每个控制周期调用一次。track_zero=true（须保证 PWM=0 且轮停稳）时
+    // 零点慢速跟踪本拍电压，压上电偏移与运行温漂；钳位在校零结果 ±0.05V 内。
+    void update(bool track_zero = false);
 
     float current() const { return current_lpf_a_; }     // A，低通后
     float currentRaw() const { return current_raw_a_; }  // A，本拍原始
@@ -41,6 +43,7 @@ private:
     adc1_channel_t channel_{};
     esp_adc_cal_characteristics_t chars_{};
     float  v_zero_ = 0.0f;
+    float  v_zero_ref_ = 0.0f; // calibrateZero* 的结果，在线跟踪的钳位中心
     float  voltage_v_ = 0.0f;
     float  current_raw_a_ = 0.0f;
     float  current_lpf_a_ = 0.0f;

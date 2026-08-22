@@ -54,6 +54,8 @@ static float k_yaw_rate = cfg::kGainYawRate;
 #endif
 static float k_yaw_integ = cfg::kGainYawIntegNm; // stage5 航向积分 ki（串口 j）
 static float k_vff = cfg::kGainVelToPitch; // 速度→倾角前馈, rad/(m/s)；串口 g 输入 deg/(m/s)
+static float alpha_inj_rad = 0.0f;         // 串口 q，开环坡角；断电丢失
+static float slope_gain = cfg::kSlopeGain; // 串口 h，0~1
 
 static volatile float    ros_linear_x = 0.0f;
 static volatile float    ros_angular_z = 0.0f;
@@ -173,6 +175,26 @@ static void applyCommandLine(const char* raw)
     case 'n': k_yaw_rate = value; break;
     case 'j': k_yaw_integ = value; break; // stage5 航向积分 ki
     case 'g': k_vff = value * 0.0174532925f; break; // 输入 deg/(m/s)，存 rad/(m/s)
+    case 'q': { // 开环坡角（度），不是 trim；正 = 车头朝上坡
+        float deg = value;
+        if (deg > cfg::kSlopeAlphaMaxDeg) {
+            deg = cfg::kSlopeAlphaMaxDeg;
+        } else if (deg < -cfg::kSlopeAlphaMaxDeg) {
+            deg = -cfg::kSlopeAlphaMaxDeg;
+        }
+        alpha_inj_rad = deg * 0.0174532925f;
+        break;
+    }
+    case 'h': { // 斜坡补偿 gain 0~1，两半同乘
+        float g = value;
+        if (g < 0.0f) {
+            g = 0.0f;
+        } else if (g > 1.0f) {
+            g = 1.0f;
+        }
+        slope_gain = g;
+        break;
+    }
     case 'v':
         linear_x = clampLinear(value);
         break;
@@ -237,13 +259,15 @@ static void applyCommandLine(const char* raw)
         return;
     }
     }
-    char buf[320];
+    char buf[384];
 #ifdef STAGE5_FIRMWARE
     snprintf(buf, sizeof(buf),
              "cmd ok: %s -> m=%u lqr kth=%.6g kom=%.6g ks=%.6g kv=%.6g "
-             "kz=%.4g kn=%.4g kj=%.4g trim=%.2fdeg vref=%.3f aref=%.3f link=%d\n",
+             "kz=%.4g kn=%.4g kj=%.4g trim=%.2fdeg ainj=%.2fdeg h=%.2f "
+             "vref=%.3f aref=%.3f link=%d\n",
              line.c_str(), mode, lqr_gains[0], lqr_gains[1], lqr_gains[2], lqr_gains[3],
-             k_yaw, k_yaw_rate, k_yaw_integ, pitch_ref_rad * 57.2957795f, linear_x, angular_z, link_up);
+             k_yaw, k_yaw_rate, k_yaw_integ, pitch_ref_rad * 57.2957795f,
+             alpha_inj_rad * 57.2957795f, slope_gain, linear_x, angular_z, link_up);
 #else
     if (mode == 3) {
         snprintf(buf, sizeof(buf),
@@ -487,6 +511,8 @@ static void comm_task(void* param)
             cmd.k_yaw_rate = k_yaw_rate;
             cmd.k_yaw_integ = k_yaw_integ;
             cmd.k_vff = k_vff;
+            cmd.alpha_inj_rad = alpha_inj_rad;
+            cmd.slope_gain = slope_gain;
             cmd.lqr_gains[0] = lqr_gains[0];
             cmd.lqr_gains[1] = lqr_gains[1];
             cmd.lqr_gains[2] = lqr_gains[2];
@@ -512,13 +538,14 @@ static void comm_task(void* param)
             if (s.mode == 0) {
                 snprintf(line, sizeof(line),
                          "m=0 hz=%u ovr=%u fault=0x%02X%s%s%s | "
-                         "iL=%.3fA iR=%.3fA iref=%.3f/%.3f "
+                         "iL=%.3fA iR=%.3fA craw=%.3f/%.3f iref=%.3f/%.3f "
                          "eff=%.1f/%.1f%% v=%.3f/%.3f ticks=%ld/%ld\n",
                          s.ctrl_hz, s.overrun_count, s.fault,
                          (s.fault & Safety::kFall) ? " FALL" : "",
                          (s.fault & Safety::kImuLost) ? " IMU_LOST" : "",
                          (s.fault & Safety::kCmdTimeout) ? " CMD_TIMEOUT" : "",
                          s.current_a[cfg::kLeft], s.current_a[cfg::kRight],
+                         s.current_raw_a[cfg::kLeft], s.current_raw_a[cfg::kRight],
                          s.i_ref_a[cfg::kLeft], s.i_ref_a[cfg::kRight],
                          s.effort[cfg::kLeft], s.effort[cfg::kRight],
                          s.wheel_vel_mps[cfg::kLeft], s.wheel_vel_mps[cfg::kRight],
@@ -526,6 +553,7 @@ static void comm_task(void* param)
             } else {
                 snprintf(line, sizeof(line),
                          "m=%u arm=%u hold=%u hN=%u hz=%u ovr=%u fault=0x%02X%s%s%s | pitch=%.2f acc=%.2f ref=%.2f deg "
+                         "ainj=%.2f seff=%.3f teq=%.2f tff=%.3f "
                          "rate=%.2f ax=%.2f ay=%.2f az=%.2f | yaw=%.1f/%.1f deg wz=%.2f uy=%.1f ui=%.3f | "
                          "u pit=%.3f rate=%.3f pos=%.3f vel=%.3f int=%.3f | "
                          "tau=%.3f/%.3fNm vref=%.3f aref=%.3f%s v=%.3f/%.3f vdc=%.3f x=%.3f/%.3f ticks=%ld/%ld "
@@ -536,6 +564,8 @@ static void comm_task(void* param)
                          (s.fault & Safety::kCmdTimeout) ? " CMD_TIMEOUT" : "",
                          s.pitch_rad * 57.2957795f, s.pitch_acc_rad * 57.2957795f,
                          s.pitch_ref_rad * 57.2957795f,
+                         s.alpha_inj_rad * 57.2957795f, s.sin_eff,
+                         s.theta_eq_rad * 57.2957795f, s.tau_ff,
                          s.pitch_rate_rps, s.acc_g[0], s.acc_g[1], s.acc_g[2],
                          s.yaw_rad * 57.2957795f, s.yaw_ref_rad * 57.2957795f,
                          s.yaw_rate_rps, s.u_yaw, s.yaw_integ_term,

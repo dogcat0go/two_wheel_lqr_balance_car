@@ -33,6 +33,7 @@ public:
         float v_cmd;
         float pitch_cmd;
         float tau_half;
+        bool  freeze;    // 上坡：冻 bias，仍更新 v_dc
     };
 
     void setParams(const Params& p) { p_ = p; }

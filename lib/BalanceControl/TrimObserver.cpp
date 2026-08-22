@@ -92,6 +92,13 @@ float TrimObserver::update(const Sample& s)
 
     v_dc_ += p_.vdc_alpha * (s.vel - v_dc_);
 
+    if (s.freeze) {
+        coast_ = false;
+        quiet_n_ = 0;
+        resetWindow();
+        return p_.enable ? bias_ : 0.0f;
+    }
+
     if (!omega_init_) {
         last_omega_ = s.omega;
         omega_init_ = true;

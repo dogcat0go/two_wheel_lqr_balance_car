@@ -125,13 +125,23 @@ trim 零点、摩擦 \(c\)、坡度 \(\alpha\)、外力在低频残差里分不�
 
 ### S1 开环喂角（补偿开，估计关）
 
-**目的：** 把「控制集成」和「估计精度」拆开。
+**目的：** 把「控制集成」和「估计精度」拆开。`t` 仍是平地 trim，**不要**写成 trim+坡度。
 
-1. 串口注入固定 \(\alpha_{\mathrm{inj}}\)（平地即可；或把车放到已知板子上但 \(\hat\alpha\) 仍用手填）。
-2. 只实现 \(\tau_{\mathrm{ff}}+\theta_{\mathrm{eq}}\)，`gain` 先 0.5，两半共用 \(\sin_{\mathrm{eff}}\)。不写 KF。
-3. 对照：故意只开 \(\tau_{\mathrm{ff}}\)、\(\theta_{\mathrm{ref}}\) 不动，应看到位置爬或姿态–位置拉锯。
+串口（与 `t`/`g` 一样在线改，断电丢失）：
 
-**过关：** 两半都开时，车体停在 \(\approx K_{\mathrm{EQ}}\sin_{\mathrm{eff}}\)，\(\tau_{\mathrm{fb}}\to 0\)。
+| 令 | 含义 | 初值 |
+| --- | --- | --- |
+| `q <deg>` | \(\alpha_{\mathrm{inj}}\)，正 = 车头朝上坡 | `0`（补偿关） |
+| `h <0~1>` | `gain`，两半同乘 | `0.5` |
+| `q 0` | 关掉补偿 | — |
+
+\(\sin_{\mathrm{eff}}=h\cdot\sin q\)，\(\theta_{\mathrm{eq}}=K_{\mathrm{EQ}}\sin_{\mathrm{eff}}\) 叠进 `ref`，\(\tau_{\mathrm{ff}}=MGR\sin_{\mathrm{eff}}\) 叠进力矩。遥测看 `ainj` / `seff` / `teq` / `tff`；`|sin_eff|` 超死区时禁止 HOLD。
+
+1. 平地先 `q 2.8`（或板子实测角），看 `ref` 是否抬约 \(K_{\mathrm{EQ}} h \sin\alpha\)（2.8°、`h 0.5` 大约 +3°），再上 3° 板。
+2. 两半必须同时开。不写 KF。
+3. 对照（可选）：临时把 `h` 拧很小再看 `u pit`/`x` 是否又开始打架——那是只搬姿态不够、或缺力矩；正式验收用 `h 0.5` → `h 1`。
+
+**过关：** 两半都开时，车体停在 \(\approx K_{\mathrm{EQ}}\sin_{\mathrm{eff}}\)，`u pit` 稳态接近 0。真坡从 3° 板起，不要在平地用大 `q` 硬顶。
 
 ### S2 只记录 \(z_{\mathrm{dyn}}\)，离线标 \(c\)
 
@@ -213,4 +223,4 @@ c^\star=\frac{\sum x_i y_i}{\sum x_i^2}
 | 磁力计绝对航向 | 阶段 7 |
 | 停车从 5 cm 打到 3 cm | 已冻结 |
 
-下一步：**烧 stage5，平地 `v 0.15` / `/cmd_vel` 验收 §0.1**，过关后再 S1。
+下一步：**烧 stage5**，平地 `q 2.8` 看 `ref`/`teq`/`tff` 接线，再上 3° 板；`q 0` 退回无补偿。

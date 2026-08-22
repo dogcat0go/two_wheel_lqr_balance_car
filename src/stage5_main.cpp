@@ -12,11 +12,11 @@
 //
 //   [TwistRef]  cmd_vel 参考成形（串口 v/a 与 ROS /cmd_vel 同口径）
 //        v_smooth / ω_smooth 斜率限幅；pos_ref += v_smooth·dt
-//        θ_ref = trim + TrimObs + sat(k_ff·v_smooth)
+//        θ_ref = trim + TrimObs + sat(k_ff·v_smooth) + θ_eq(α_inj)
 //
 //   [LQR 共模]  不进偏航
-//        u_sum = K(x - x_ref)
-//        x_ref.pitch = trim + bias + k_ff·v；vel = v_smooth；pos = pos_ref
+//        u_sum = K(x - x_ref) + τ_ff
+//        x_ref.pitch = trim + bias + k_ff·v + θ_eq；vel = v_smooth；pos = pos_ref
 //
 //   [YawMixer]  力矩差速，叠在左右轮上
 //        轮速差 P：u_sync = n·(ω_smooth·L + v_l − v_r)
@@ -35,7 +35,7 @@
 //
 //   [快照] 本拍填 ControlSnapshot，publishSnapshot 自旋锁拷给 Core0
 //
-// 串口：k kθ kω ks kv（N·m）；z 航向 P；n 轮速差 k_sync；t trim；v/a；r 探轮后武装；s 停机
+// 串口：k kθ kω ks kv（N·m）；z 航向 P；n 轮速差 k_sync；t trim；q 坡角；h gain；v/a；r 探轮后武装；s 停机
 // ============================================================
 
 #include <Arduino.h>
@@ -93,6 +93,7 @@ static void control_task(void* param)
     float    yaw = 0.0f;       // 轮式 ψ
     bool     db_ff = true;     // Karnopp：TRACK 死区前馈使能（回差）
     float    last_tau_half = 0.0f; // 上一拍 |u_sum|/2，交给 TrimObserver 力矩门
+    int      zero_quiet_n[2] = {0, 0}; // 零点跟踪门：PWM=0 且轮停稳的连续拍数
 
     for (;;) {
         vTaskDelayUntil(&next_wake, period_ticks);
@@ -100,9 +101,14 @@ static void control_task(void* param)
         const uint32_t t0_us = micros();
 
         // ---- 采样：编码器 / 电流 / IMU（now 必须在 ahrs.update 之后取）----
+        // 零点跟踪门：上一拍 PWM=0 且轮停稳（AT8236 PWM=0 滑行，无再生电流）
         for (int i = 0; i < 2; i++) {
             sensors[i].update(t0_us);
-            current_sensors[i].update();
+            const bool zero_quiet =
+                fabsf(actuators[i].lastDuty()) < 1e-3f &&
+                fabsf(sensors[i].speed()) < cfg::kCurrentZeroSpeedEps;
+            zero_quiet_n[i] = zero_quiet ? zero_quiet_n[i] + 1 : 0;
+            current_sensors[i].update(zero_quiet_n[i] > cfg::kCurrentZeroSettleTicks);
         }
         ahrs.update(cfg::kCtrlDt);
 
@@ -210,6 +216,11 @@ static void control_task(void* param)
             .active = balancing,
         });
 
+        const float sin_eff = cmd.slope_gain * sinf(cmd.alpha_inj_rad);
+        const float theta_eq = cfg::kThetaEqGain * sin_eff;
+        const float tau_ff = cfg::kMgrNm * sin_eff;
+        const bool on_slope = fabsf(sin_eff) > cfg::kSlopeSinDeadzone;
+
         const float trim_bias = trim_obs.update({
             .balancing = balancing,
             .holding = hold.holding(),
@@ -219,18 +230,19 @@ static void control_task(void* param)
             .v_cmd = v_cmd,
             .pitch_cmd = cmd.pitch_ref_rad,
             .tau_half = last_tau_half,
+            .freeze = on_slope,
         });
 
-        // x_ref：trim + 观测偏置 + 速度倾角前馈；位置随 v_smooth 积分
+        // x_ref：trim + 观测偏置 + 速度倾角前馈 + θ_eq；位置随 v_smooth 积分
         BalanceState ref{};
-        ref.pitch = cmd.pitch_ref_rad + trim_bias + tr.pitch_ff;
+        ref.pitch = cmd.pitch_ref_rad + trim_bias + tr.pitch_ff + theta_eq;
         ref.vel   = tr.v;
         ref.pos   = tr.pos_ref;
         balance.setRef(ref);
 
-        float balance_u = 0.0f; // 两轮力矩之和
+        float balance_u = 0.0f; // 两轮力矩之和（含 τ_ff）
         if (balancing) {
-            balance_u = balance.update(x, cfg::kCtrlDt);
+            balance_u = balance.update(x, cfg::kCtrlDt) + tau_ff;
             last_tau_half = (hold.holding() || trim_obs.coast())
                 ? 0.0f : 0.5f * fabsf(balance_u);
         }
@@ -243,7 +255,7 @@ static void control_task(void* param)
             .tau_half = 0.5f * fabsf(balance_u),
             .v_cmd = v_cmd,
             .w_cmd = w_cmd,
-            .allow = balancing,
+            .allow = balancing && !on_slope,
         });
         if (hold.justEntered()) {
             twist.reset(x.pos);
@@ -364,6 +376,10 @@ static void control_task(void* param)
         snap.armed = armed;
         snap.hold = hold.holding() ? 1 : 0;
         snap.hold_n = hold.confirmCount();
+        snap.alpha_inj_rad = cmd.alpha_inj_rad;
+        snap.sin_eff = sin_eff;
+        snap.theta_eq_rad = theta_eq;
+        snap.tau_ff = balancing ? tau_ff : 0.0f;
         memcpy(snap.terms, balance.terms(), sizeof(snap.terms));
         if ((micros() - t0_us) > cfg::kCtrlPeriodMs * 1000) {
             snap.overrun_count++;
@@ -436,6 +452,7 @@ void setup()
             .sign = cfg::kCurrentSign[i],
             .lpf_alpha = cfg::kCurrentLpfAlpha[i],
             .zero_samples = cfg::kCurrentZeroSamples[i],
+            .zero_track_alpha = cfg::kCurrentZeroTrackAlpha,
         });
         current_sensors[i].calibrateZero();
         Serial.printf("CurrentSensor[%d] GPIO%d zero=%.3fV sens=%.0fmV/A sign=%.0f\n",
@@ -516,6 +533,7 @@ void setup()
     Serial.println("up: stage5 LQR | arm=0 | hold upright near trim, send r");
     Serial.println("hint: k kth komega ks kv (N.m); z heading P; n wheel-sync k_sync; j heading I");
     Serial.println("hint: v <m/s> a <rad/s> (or ROS /cmd_vel); g <deg/(m/s)> k_ff");
+    Serial.println("hint: q <deg> slope inject (not trim); h <0-1> gain (def 0.5); q 0 off");
     Serial.println("hint: s=stop; after s send m 3 then r (arm); b=deadband calib");
     Serial.printf("deadband: L=%.2f%% R=%.2f%% (NVS or default)\n",
                   actuators[cfg::kLeft].deadband(), actuators[cfg::kRight].deadband());

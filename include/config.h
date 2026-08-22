@@ -2,7 +2,7 @@
  * @Author: LCOIT dogcat.let@gmail.com
  * @Date: 2026-08-03 13:59:58
  * @LastEditors: LCOIT dogcat.let@gmail.com
- * @LastEditTime: 2026-08-21 01:46:20
+ * @LastEditTime: 2026-08-21 17:16:13
  * @FilePath: /fishbot_esp32_mt_example/include/config.h
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -54,13 +54,21 @@ constexpr float kMPerTick       = 0.134228e-3f; // m/tick（正值）
 constexpr float kWheelRadiusM   = 0.0375f;      // 实测轮半径 3.75cm
 constexpr float kWheelDistanceM = 0.16f;       // 轮距
 
-// ---- LQR 植物理（离线 tools/lqr_gain_design.py 读取；改 M/m/l/I/r/dt 后必须重算 K）----
+// ---- LQR 物理参数（离线 tools/lqr_gain_design.py 读取；改 M/m/l/I/r/dt 后必须重算 K）----
 // 称重：docs/stage5_physical_params_table.md（2026-08-16）。旧估算 l=0.012 已作废。
 constexpr float kBodyMassKg       = 0.70f;   // M：去轮、留电机
 constexpr float kWheelMassKg      = 0.135f;  // m：两轮合计，转子=0 含车轮得等效质量
 constexpr float kComHeightM       = 0.0204f; // l：车体质心到轮轴
 constexpr float kBodyPitchInertia = 5.63e-4f;    // I_cm；对照可改 5.63e-4
 constexpr float kGravity          = 9.81f;
+// 斜坡开环（S1）：串口 q 喂 α_inj（度），h 调 gain；两半共用 sin_eff。不写 KF。
+constexpr float kTotalMassKg = kBodyMassKg + kWheelMassKg;
+constexpr float kMgrNm = kTotalMassKg * kGravity * kWheelRadiusM; // τ_ff = MGR·sin_eff
+constexpr float kThetaEqGain = kTotalMassKg * kWheelRadiusM
+    / (kBodyMassKg * kComHeightM); // θ_eq = K_EQ·sin_eff ≈ 2.19
+constexpr float kSlopeGain         = 0.72f;    // S1 初值；串口 h
+constexpr float kSlopeSinDeadzone  = 0.015f;  // |sin_eff| 超此禁止 HOLD、冻 Trim
+constexpr float kSlopeAlphaMaxDeg  = 12.0f;   // 串口 q 限幅
 
 // m 3：LQR 增益默认值 (N·m/状态)，上电载入；串口 k/p/d/y/w 可改，断电丢失。
 // tools/lqr_gain_design.py 打印「串口：k ...」可直接粘贴；--write 只改这里的默认。
@@ -83,6 +91,11 @@ constexpr float kCurrentSensVPerA[2]   = {0.185f, 0.185f}; // V/A
 constexpr float kCurrentSign[2]        = {-1.0f, 1.0f};    // +1 = 该轮前进为正电流
 constexpr float kCurrentLpfAlpha[2]    = {0.15f, 0.15f};   // 低通；越小越稳、越滞后
 constexpr int   kCurrentZeroSamples[2] = {100, 100};       // 上电零点平均次数
+// 在线零点跟踪（T1 实测：上电偏移约 -17mA，跑 2min 温漂 L-18/R+24mA 反向）。
+// 门：PWM=0 且 |轮速|<eps 且归零后满 settle 拍（AT8236 PWM=0 为滑行，转轮无电流）。
+constexpr float kCurrentZeroTrackAlpha  = 0.0025f; // τ=dt/α≈2s；0=关
+constexpr int   kCurrentZeroSettleTicks = 40;      // PWM 归零后停等 0.2s
+constexpr float kCurrentZeroSpeedEps    = 0.01f;   // m/s，轮速门
 constexpr float kCurrentMaxA = 2.5f;   // 开环 |I_ref| 上限 (A)
 constexpr float kCurrentKp   = 80.0f;  // 电流 PI，%/A
 constexpr float kCurrentKi   = 160.0f;  // 电流 PI，%/(A·s)

@@ -6,6 +6,7 @@
 
 按 key=value 抽字段，'|' 只当分段、不当分隔符。兼容：
   - 现 WiFi/stage5：arm= hold= hN=；u pit=/rate=/pos=/vel=；tau=；eff=
+  - mode=0 紧凑：iL/iR、craw=、iref=、eff=、v=、ticks=（L/R 用 / 分隔）
   - 旧 stage3：m= 后紧跟 hz=；u p=/d=/i=；effort=
 重复 key（如两个 rate=）按出现顺序：先俯仰角速度，后控制项 u_rate。
 """
@@ -63,8 +64,14 @@ FIELDS = [
     "effort_r",
     "iref_l",
     "iref_r",
+    "craw_l",
+    "craw_r",
     "i_l",
     "i_r",
+    "ainj_deg",
+    "sin_eff",
+    "teq_deg",
+    "tff",
 ]
 
 
@@ -129,6 +136,7 @@ def parse_line(line):
     xl, xr = _pair(first.get("x"))
     tl, tr = _pair(first.get("tau"))
     iref_l, iref_r = _pair(first.get("iref"))
+    craw_l, craw_r = _pair(first.get("craw"))
     yaw, yaw_ref = _pair(first.get("yaw"))
     ticks_l, ticks_r = _pair(first.get("ticks"))
 
@@ -179,8 +187,14 @@ def parse_line(line):
         "effort_r": er,
         "iref_l": iref_l,
         "iref_r": iref_r,
+        "craw_l": craw_l,
+        "craw_r": craw_r,
         "i_l": _num(first.get("iL")),
         "i_r": _num(first.get("iR")),
+        "ainj_deg": _num(first.get("ainj")),
+        "sin_eff": _num(first.get("seff")),
+        "teq_deg": _num(first.get("teq")),
+        "tff": _num(first.get("tff")),
     }
 
 
