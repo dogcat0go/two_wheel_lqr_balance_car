@@ -63,7 +63,7 @@ CONFIRM ──条件断开──► TRACK                            │
 | --- | --- | --- | --- | --- | --- |
 | TRACK | 跟满 `τ_cmd` | 出力 | 可积 | **开**（见 §5） | `v_cmd=0` 时锁存 |
 | CONFIRM | 仍跟满 `τ_cmd` | 出力 | 可积 | 开 | 不变 |
-| HOLD | 只出 pitch+rate | 仍算满（唤醒） | **冻结** | **开**（跟 τ） | 进入时锁成当前 `x` |
+| HOLD | 只出相对 `θ_latch` 的 pitch+rate | 仍算满（唤醒） | **冻结** | `|τ|≥τ_eps` 才开 | 进入时锁 `x` 与 `θ` |
 
 `CONFIRM` 不可省：倒立摆过零时 `|v|`、`|ω|` 会抖一两个控制拍，没有确认时间会 200 Hz 开关。
 
@@ -86,7 +86,7 @@ CONFIRM ──条件断开──► TRACK                            │
 | 倾角速率 | \(\|\dot\theta\|<\omega_{\mathrm{in}}\) | \(\|\dot\theta\|>\omega_{\mathrm{out}}\) | 0.12 / 0.25 rad/s | 还在倒就不要停电机 |
 | 轮速 | \(\|v\|<v_{\mathrm{in}}\) | \(\|v\|>v_{\mathrm{out}}\) | 0.02 / 0.04 m/s | 「人眼已停」 |
 | 位置 | \(\|e_s\|<s_{\mathrm{in}}\) | \(\|e_s\|>s_{\mathrm{out}}\) | 3 cm / 6 cm | 禁止在偏了 20 cm 时假装该停 |
-| 力矩（可选 AND） | \(\|u_{\mathrm{sum}}\|/2<\tau_{\mathrm{in}}\) | \(\|u_{\mathrm{sum}}\|/2>\tau_{\mathrm{out}}\) | 0.009 / 0.0135 N·m | 与现 `kTorqueEps` 对齐；防对消漏检可保留 |
+| 力矩 | 进门用重力项（TRACK 时 ≈`kω·ω`） | HOLD 里重力项超 \(\tau_{\mathrm{out}}\) | 0.009 / 0.0135 N·m | 不再用满 LQR：2° trim 误差单独就有 65mN·m |
 | 指令 | \(\|v_{\mathrm{cmd}}\|<\varepsilon_v\) 且 \(\|w_{\mathrm{cmd}}\|<\varepsilon_w\) | 指令超出 | 已有 `kYawCmdEps`；线速度用 0.01 m/s | 跟速时不准 HOLD |
 | 安全 | `armed` 且无 `HardFault` | 摔倒 / IMU 丢失 | 已有 Safety | 摔倒角当拍回满 LQR |
 
@@ -110,7 +110,7 @@ CONFIRM ──条件断开──► TRACK                            │
 **做：**
 
 1. 进入时 `pos_ref ← x` 且 `θ_latch ← θ`。出力 `(kθ(θ−θ_latch)+kω·ω)/2`，不追 trim。
-2. `|τ|<τ_eps` 不补死区（防易转的那一轮被顶走）；超过再补。
+2. `|τ|<τ_eps` 两轮清零；超过才出重力并叠 `n·(v_l−v_r)`。速度门看单轮，不看均值。
 3. 冻结 `yaw_integ`；电流 PI 继续跟重力项。
 4. LQR 仍算满，退出回 TRACK。
 5. 遥测 `hold=1`；刚进入 `eff` 可以是 0（坐在摩擦锥里），漂了再出小力矩。

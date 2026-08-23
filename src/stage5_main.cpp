@@ -251,7 +251,7 @@ static void control_task(void* param)
         hold.update({
             .e_theta = e_hold,
             .omega = x.pitch_rate,
-            .vel = x.vel,
+            .vel = fmaxf(fabsf(v_l), fabsf(v_r)), // 单轮走也算超速；均值会漏掉原地打转
             .e_pos = x.pos - tr.pos_ref,
             .tau_half = 0.5f * fabsf(u_grav),
             .v_cmd = v_cmd,
@@ -293,14 +293,23 @@ static void control_task(void* param)
         float v_abs = 0.0f;
         const bool holding = hold.holding();
         if (balancing) {
-            // HOLD：围着 latch 倾角只出 pitch+rate。不追 trim，也不叠 pos/vel/偏航。
+            // HOLD：围着 latch 出 pitch+rate。小 τ 两轮清零（4mN·m 就会把易转轮顶走）。
+            // 超过门槛才出力，并叠轮速同步（one_stuck 门在 HOLD 里会误杀同步项，这里单算）。
             const float u_cm = holding
                 ? (cmd.lqr_gains[0] * (x.pitch - hold_pitch)
                    + cmd.lqr_gains[1] * x.pitch_rate)
                 : balance_u;
+            const float u_sync_hold = cmd.k_yaw_rate * (v_l - v_r);
             for (int i = 0; i < 2; i++) {
                 float tau_nm = 0.5f * u_cm;
-                if (!holding) {
+                if (holding) {
+                    if (fabsf(tau_nm) < cfg::kTorqueEps) {
+                        tau_nm = 0.0f;
+                    } else {
+                        tau_nm = (i == cfg::kLeft)
+                            ? (tau_nm - u_sync_hold) : (tau_nm + u_sync_hold);
+                    }
+                } else {
                     tau_nm = (i == cfg::kLeft) ? (tau_nm - u_yaw) : (tau_nm + u_yaw);
                 }
                 tau_cmd[i] = safety.limit(i, tau_nm, cfg::kCtrlDt);
