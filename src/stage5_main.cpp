@@ -448,8 +448,13 @@ void setup()
             .lpf_alpha = cfg::kCurrentLpfAlpha[i],
             .zero_samples = cfg::kCurrentZeroSamples[i],
             .zero_track_alpha = cfg::kCurrentZeroTrackAlpha,
+            .zero_min_v = cfg::kCurrentZeroMinV,
+            .zero_max_v = cfg::kCurrentZeroMaxV,
         });
         current_sensors[i].calibrateZero();
+        if (!current_sensors[i].zeroOk()) {
+            Serial.printf("CurrentSensor[%d] ZERO OUT OF RANGE -- sensor/wiring fault?\n", i);
+        }
         Serial.printf("CurrentSensor[%d] GPIO%d zero=%.3fV sens=%.0fmV/A sign=%.0f\n",
                       i, cfg::kCurrentAdcGpio[i], current_sensors[i].zeroVoltage(),
                       cfg::kCurrentSensVPerA[i] * 1000.0f, cfg::kCurrentSign[i]);

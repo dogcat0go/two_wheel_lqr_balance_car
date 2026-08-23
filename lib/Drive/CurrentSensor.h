@@ -18,6 +18,10 @@ public:
         float lpf_alpha;           // 一阶低通 (0~1]，1 = 不滤波
         int   zero_samples;        // calibrateZero() 平均采样数
         float zero_track_alpha; // 在线零点跟踪系数；0=关（不填=0）
+        // 零点合理性带 (V)：标定结果出带=传感器/线故障，拒绝采纳（防坏读数当零点）。
+        // max<=min 时关闭。ACS712 零点 ≈ VCC/2 = 2.5V。
+        float zero_min_v;
+        float zero_max_v;
     };
 
     void init(const Params& params);
@@ -34,12 +38,15 @@ public:
     float voltage() const { return voltage_v_; }         // V，本拍 ADC 电压
     float zeroVoltage() const { return v_zero_; }        // V，校零结果
     bool  ok() const { return ok_; }
+    bool  zeroOk() const { return zero_ok_; } // false = 最近一次标定出带被拒
 
 private:
     float readVoltage();
+    void  adoptZero(float measured_v);
 
     Params params_{};
     bool   ok_ = false;
+    bool   zero_ok_ = true;
     adc1_channel_t channel_{};
     esp_adc_cal_characteristics_t chars_{};
     float  v_zero_ = 0.0f;

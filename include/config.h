@@ -91,6 +91,9 @@ constexpr float kCurrentSensVPerA[2]   = {0.185f, 0.185f}; // V/A
 constexpr float kCurrentSign[2]        = {-1.0f, 1.0f};    // +1 = 该轮前进为正电流
 constexpr float kCurrentLpfAlpha[2]    = {0.15f, 0.15f};   // 低通；越小越稳、越滞后
 constexpr int   kCurrentZeroSamples[2] = {100, 100};       // 上电零点平均次数
+// 零点合理性带：ACS712 零点≈VCC/2=2.5V，标定结果出带=传感器/线故障，拒绝采纳
+constexpr float kCurrentZeroMinV = 2.0f;
+constexpr float kCurrentZeroMaxV = 3.0f;
 // 在线零点跟踪（T1 实测：上电偏移约 -17mA，跑 2min 温漂 L-18/R+24mA 反向）。
 // 门：PWM=0 且 |轮速|<eps 且归零后满 settle 拍（AT8236 PWM=0 为滑行，转轮无电流）。
 constexpr float kCurrentZeroTrackAlpha  = 0.0025f; // τ=dt/α≈2s；0=关

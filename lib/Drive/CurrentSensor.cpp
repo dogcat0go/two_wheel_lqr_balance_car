@@ -55,6 +55,27 @@ float CurrentSensor::readVoltage()
     return esp_adc_cal_raw_to_voltage(acc / kOversample, &chars_) * 1e-3f;
 }
 
+// 标定结果的采纳闸：出带（传感器坏读/线断）时不让坏值当零点。
+// 有旧的好零点就保留；连好零点都没有（上电即坏）用名义中值顶住——
+// 此时读数必然撞 WheelActuator 的 i_fault_a 防御，电流环安全冻结。
+void CurrentSensor::adoptZero(float measured_v)
+{
+    const bool band_on = params_.zero_max_v > params_.zero_min_v;
+    const bool in_band = measured_v >= params_.zero_min_v &&
+                         measured_v <= params_.zero_max_v;
+    zero_ok_ = !band_on || in_band;
+    if (zero_ok_) {
+        v_zero_ = measured_v;
+        v_zero_ref_ = v_zero_;
+    } else if (!(v_zero_ref_ >= params_.zero_min_v &&
+                 v_zero_ref_ <= params_.zero_max_v)) {
+        v_zero_ = 0.5f * (params_.zero_min_v + params_.zero_max_v);
+        v_zero_ref_ = v_zero_;
+    }
+    current_raw_a_ = 0.0f;
+    current_lpf_a_ = 0.0f;
+}
+
 void CurrentSensor::calibrateZero()
 {
     if (!ok_) {
@@ -65,10 +86,7 @@ void CurrentSensor::calibrateZero()
         sum += readVoltage();
         delay(2);
     }
-    v_zero_ = sum / static_cast<float>(params_.zero_samples);
-    v_zero_ref_ = v_zero_;
-    current_raw_a_ = 0.0f;
-    current_lpf_a_ = 0.0f;
+    adoptZero(sum / static_cast<float>(params_.zero_samples));
 }
 
 void CurrentSensor::calibrateZeroFast()
@@ -81,10 +99,7 @@ void CurrentSensor::calibrateZeroFast()
     for (int i = 0; i < n; i++) {
         sum += readVoltage();
     }
-    v_zero_ = sum / static_cast<float>(n);
-    v_zero_ref_ = v_zero_;
-    current_raw_a_ = 0.0f;
-    current_lpf_a_ = 0.0f;
+    adoptZero(sum / static_cast<float>(n));
 }
 
 void CurrentSensor::update(bool track_zero)
