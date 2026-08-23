@@ -24,14 +24,14 @@
 //        松杆且 z≠0：u_yaw = z·sat(wrap(ψ_ref-ψ)) + j·∫误差 + u_sync
 //        z=0：只留 u_sync；单轮卡住停积 ψ
 //
-//   [HOLD] 车辆级 in-position（HoldPolicy）：与门+确认进，或门当拍出；两轮同时 PWM=0
-//        LQR 仍每拍计算（唤醒判据）；航向 I 在 HOLD 内冻结
+//   [HOLD] 车辆级 in-position（HoldPolicy）：与门+确认进，或门当拍出
+//        LQR 仍每拍算满（唤醒判据）；航向 I 冻结；刚进入 pos_ref←x
+//        执行只出 pitch+rate（重力补偿），不叠加 pos/vel/偏航，不拔电机
 //
 //   [执行]
-//        左 τ = u_sum/2 - u_yaw ；右 τ = u_sum/2 + u_yaw
-//        HOLD 时两轮 τ_cmd=0，刚进入时 pos_ref←x
-//        TRACK：Karnopp 门控死区前馈（粘着且小 τ 不补；滑动 sign(v)，破粘着 sign(τ)）
-//        否则 Safety → 电流环 → PWM
+//        TRACK：左 τ = u_sum/2 - u_yaw ；右 τ = u_sum/2 + u_yaw
+//        HOLD：τ = (kθ·eθ + kω·ω)/2，死区前馈跟 τ（零速穿死区）
+//        TRACK 死区前馈：滑动 sign(v)，粘着 sign(τ)
 //
 //   [快照] 本拍填 ControlSnapshot，publishSnapshot 自旋锁拷给 Core0
 //
@@ -218,7 +218,7 @@ static void control_task(void* param)
         const bool on_slope = fabsf(sin_eff) > cfg::kSlopeSinDeadzone;
 
         trim_servo.setK(cmd.trim_servo_k); // 串口 u；u 0 关伺服
-        // HOLD 冻 bias：PWM=0 滑行时 v_dc 不再度量 trim 误差，积进去是污染
+        // HOLD 冻 bias：站立段 v_dc 含粘着噪声，积进去是污染
         const float trim_bias = trim_servo.update({
             .balancing = balancing,
             .vel = x.vel,
@@ -269,7 +269,7 @@ static void control_task(void* param)
         const float u_yaw = ym.u_yaw;
         const float u_i = ym.u_i;
 
-        // ---- 执行：共模/2 ± 差速 → Safety → Karnopp 死区门 → 电流环 ----
+        // ---- 执行：共模/2 ± 差速 → Safety → 死区前馈 → 电流环 ----
         if (cmd.current_zero_seq != last_zero_seq) {
             last_zero_seq = cmd.current_zero_seq;
             for (int i = 0; i < 2; i++) {
@@ -281,13 +281,21 @@ static void control_task(void* param)
 
         float tau_cmd[2] = {0.0f, 0.0f};
         float v_abs = 0.0f;
+        const bool holding = hold.holding();
         if (balancing) {
+            // HOLD：只留倾角两项顶重力。pos/vel 已 rebase 仍会带噪声，偏航零速差是伪信号。
+            const float u_cm = holding
+                ? (balance.terms()[BalanceController::kTermPitch]
+                   + balance.terms()[BalanceController::kTermPitchRate])
+                : balance_u;
             for (int i = 0; i < 2; i++) {
-                float tau_nm = 0.5f * balance_u;
-                tau_nm = (i == cfg::kLeft) ? (tau_nm - u_yaw) : (tau_nm + u_yaw);
+                float tau_nm = 0.5f * u_cm;
+                if (!holding) {
+                    tau_nm = (i == cfg::kLeft) ? (tau_nm - u_yaw) : (tau_nm + u_yaw);
+                }
                 tau_cmd[i] = safety.limit(i, tau_nm, cfg::kCtrlDt);
             }
-            if (!hold.holding()) {
+            if (!holding) {
                 v_abs = 0.5f * (fabsf(v_l) + fabsf(v_r));
             }
         }
@@ -296,23 +304,16 @@ static void control_task(void* param)
             float i_ref = 0.0f;
             const float tau_nm = tau_cmd[i];
             if (balancing) {
-                if (hold.holding()) {
-                    i_ref = 0.0f;
-                    actuators[i].applyTorque(0.0f, current_sensors[i].current(),
-                                             cfg::kCtrlDt, false);
-                } else {
-                    const float ff_dir = hard_fault ? 0.0f
-                        : (v_abs >= cfg::kHoldVelIn
-                               ? ((i == cfg::kLeft) ? v_l : v_r)
-                               : tau_nm);
-                    i_ref = hard_fault ? 0.0f : tau_nm / cfg::kTorquePerAmp[i];
-                    // TRACK 常开死区前馈：粘着段也补，避免 PI 从 0 爬过门槛形成张弛环。
-                    // 真停稳只走 HOLD（上面分支 compensate=false）。
-                    actuators[i].applyTorque(hard_fault ? 0.0f : tau_nm,
-                                             current_sensors[i].current(),
-                                             cfg::kCtrlDt, !hard_fault,
-                                             ff_dir);
-                }
+                const float ff_dir = hard_fault ? 0.0f
+                    : ((holding || v_abs < cfg::kHoldVelIn)
+                           ? tau_nm
+                           : ((i == cfg::kLeft) ? v_l : v_r));
+                i_ref = hard_fault ? 0.0f : tau_nm / cfg::kTorquePerAmp[i];
+                // 死区前馈常开（含 HOLD）：数 mN·m 的重力项不补就穿不过电气死区。
+                actuators[i].applyTorque(hard_fault ? 0.0f : tau_nm,
+                                         current_sensors[i].current(),
+                                         cfg::kCtrlDt, !hard_fault,
+                                         ff_dir);
                 snap.effort[i] = actuators[i].lastDuty();
             } else if (cmd.mode == 0 && !cmd_lost && cmd.use_current[i]) {
                 i_ref = hard_fault ? 0.0f : cmd.test_current[i];

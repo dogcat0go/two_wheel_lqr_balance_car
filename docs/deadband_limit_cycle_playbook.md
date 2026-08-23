@@ -90,7 +90,7 @@ python3 tools/limit_cycle_metrics.py logs/wifi.log --all   # 已修剪、不裁�
    2.7s、HOLD 从偶进变零进。位置增益决定摆多快，消不了摆；回设计值 0.147。
 2. **倒下时轮速是伪信号**：车体旋转 + 电机被反拖，编码器读数不代表对地速度，
    轮速差同步项会劫持共模救车力矩（u_sync 已加 one_stuck 门控）。
-3. **HOLD 期间 v_dc 不度量 trim 误差**：PWM=0 滑行，微坡缓滚会污染 trim
+3. **HOLD 期间 v_dc 不度量 trim 误差**：粘着噪声会污染 trim
    伺服 bias（已加 freeze 门控）。
 4. **单格机械异常 > 一切参数**：R反 73mN·m 直接导致后倾救车失败摔车。
    调参前先把四格量出来看有没有离群值。

@@ -12,10 +12,10 @@
 
 | 要达到 | 不追求 |
 | --- | --- |
-| `vref=0` 时进入 HOLD 后 `eff=0`，靠静摩擦钉住 | 无静摩擦（架空）仍能「停」 |
+| `vref=0` 时进入 HOLD 后只出 pitch+rate，钉在进入位置 | 无静摩擦（架空）仍能「停」；PWM 强制 0 |
 | 倾角、角速度、轮速、位置误差**同时**小才允许停 | `|K·e|` 小就可以停（对消也能进） |
-| 任一通道超限立即唤醒 LQR（倒立摆开环不稳） | dither / 故意微振过静摩擦 |
-| TRACK 时才允许死区前馈 | 休息区里仍 `compensateDeadband` |
+| 任一通道超限立即唤醒满 LQR（倒立摆开环不稳） | dither / 故意微振过静摩擦 |
+| 死区前馈跟 τ（零速）或 v（滑动），HOLD 不关 | HOLD 里拔电机靠摩擦赌平衡点 |
 | 验收：空地 30 s 内 `x` 峰峰值 ≤ 3 cm，HOLD 占空比可见 | 与有抱闸的机床同一套锁死指标 |
 
 trim（`t`）是另一个环：机械平衡点必须先对准。In-position **不**代替拧 `t`，也不代替扰动观测器。
@@ -30,11 +30,11 @@ trim（`t`）是另一个环：机械平衡点必须先对准。In-position **�
 control_task (Core1, 200 Hz)
   LQR 照常算 u_sum、u_yaw          ← 即使 HOLD 也算，用作唤醒判据
   HoldPolicy：TRACK / CONFIRM / HOLD
-  HOLD：两轮 τ_cmd = 0，冻结积分
-  TRACK：τ_cmd = u_sum/2 ± u_yaw，可加摩擦前馈
+  HOLD：τ_cmd = (kθ·eθ + kω·ω)/2，冻结航向 I，pos_ref←x
+  TRACK：τ_cmd = u_sum/2 ± u_yaw
 
 WheelActuator
-  |τ_cmd| 为 0 → PWM=0、清电流积分、不走死区前馈
+  跟 τ_cmd + 死区前馈；|τ_cmd|≈0 时电流环自己归零
   不再单独根据 |τ| 决定「车该不该停」（避免左右一轮停一轮转）
 ```
 
@@ -61,9 +61,9 @@ CONFIRM ──条件断开──► TRACK                            │
 
 | 状态 | 电机 | LQR | 偏航积分 | 死区前馈 | `pos_ref` |
 | --- | --- | --- | --- | --- | --- |
-| TRACK | 跟 `τ_cmd` | 出力 | 可积 | **开**（见 §5） | `v_cmd=0` 时锁存 |
-| CONFIRM | 仍跟 `τ_cmd` | 出力 | 可积 | 开 | 不变 |
-| HOLD | **PWM=0** | 只算不出力 | **冻结** | **关** | 可选：锁成当前 `x`（见 §4） |
+| TRACK | 跟满 `τ_cmd` | 出力 | 可积 | **开**（见 §5） | `v_cmd=0` 时锁存 |
+| CONFIRM | 仍跟满 `τ_cmd` | 出力 | 可积 | 开 | 不变 |
+| HOLD | 只出 pitch+rate | 仍算满（唤醒） | **冻结** | **开**（跟 τ） | 进入时锁成当前 `x` |
 
 `CONFIRM` 不可省：倒立摆过零时 `|v|`、`|ω|` 会抖一两个控制拍，没有确认时间会 200 Hz 开关。
 
@@ -88,7 +88,7 @@ CONFIRM ──条件断开──► TRACK                            │
 | 位置 | \(\|e_s\|<s_{\mathrm{in}}\) | \(\|e_s\|>s_{\mathrm{out}}\) | 3 cm / 6 cm | 禁止在偏了 20 cm 时假装该停 |
 | 力矩（可选 AND） | \(\|u_{\mathrm{sum}}\|/2<\tau_{\mathrm{in}}\) | \(\|u_{\mathrm{sum}}\|/2>\tau_{\mathrm{out}}\) | 0.009 / 0.0135 N·m | 与现 `kTorqueEps` 对齐；防对消漏检可保留 |
 | 指令 | \(\|v_{\mathrm{cmd}}\|<\varepsilon_v\) 且 \(\|w_{\mathrm{cmd}}\|<\varepsilon_w\) | 指令超出 | 已有 `kYawCmdEps`；线速度用 0.01 m/s | 跟速时不准 HOLD |
-| 安全 | `armed` 且无 `HardFault` | 摔倒 / IMU 丢失 | 已有 Safety | HOLD 里倒立摆无主动力矩 |
+| 安全 | `armed` 且无 `HardFault` | 摔倒 / IMU 丢失 | 已有 Safety | 摔倒角当拍回满 LQR |
 
 确认时间：`kHoldEnterTicks = 20`（100 ms @ 200 Hz）。退出：**当拍立即** TRACK，不加确认（倒立摆来不及等）。
 
@@ -109,14 +109,11 @@ CONFIRM ──条件断开──► TRACK                            │
 
 **做：**
 
-1. 两轮 `applyTorque(0)`（或 `stop()` + `resetCurrentLoop()`），保证死区前馈不跑。
-2. 冻结 `yaw_integ`、电流 PI 积分（`resetCurrentLoop` 已清）。
-3. LQR **继续算** `u_sum` 和各项 `terms[]`，供退出判据和遥测。不算就不知道该不该醒。
-4. 遥测打标志 `hold=1`，`eff` 必须为 0。
-
-**可选（第二期）：** 进入 HOLD 时把 `pos_ref ← x`。  
-效果：在摩擦锁住的位置安家，不把「20 cm 外的原点」继续当目标。  
-代价：不再回 `r` 时的原点。定点站立产品通常选这个；回原点巡线才锁死 `pos_ref`。本车 `vref=0` 站立建议 **进入 HOLD 时 rebase `pos_ref`**。
+1. 两轮出 `(kθ·eθ + kω·ω)/2`，死区前馈跟 τ。倒立摆 PWM=0 是开环，静摩擦撑不住 30 s。
+2. 冻结 `yaw_integ`；电流 PI **继续跟** 重力项，不清零。
+3. LQR **继续算** 满 `u_sum` 和各项 `terms[]`，供退出判据和遥测。不算就不知道该不该醒。
+4. 进入时 `pos_ref ← x`：在站住的位置安家，不把武装原点继续当目标。
+5. 遥测打标志 `hold=1`；`eff` 不再要求 0，应是小而稳的重力补偿。
 
 **不做：**
 
@@ -130,16 +127,15 @@ CONFIRM ──条件断开──► TRACK                            │
 
 ## 5. TRACK：摩擦前馈与休息拆开
 
-工业组合是 **动则补摩擦，停则钳位**。本车现在是继电器死区，HOLD 未生效时站立也会抬到 ±10%。
+工业组合是 **动则补摩擦，停则只留重力项**。死区前馈在 TRACK 与 HOLD 都开；HOLD 不补则数 mN·m 穿不过电气死区。
 
-TRACK 才允许 `compensateDeadband`。stage5 已按 Karnopp 门控（门槛复用 `kHoldVelIn/Out` 与 `kTorqueEps`，回差）：
+门槛复用 `kHoldVelIn`：滑动跟 `sign(v)`，零速（含 HOLD）跟 `sign(τ)`：
 
 | 条件 | 行为 |
 | --- | --- |
-| HOLD | PWM=0，无前馈 |
+| HOLD | 出 pitch+rate，按 `sign(τ)` 补（重力项不补等于没出） |
 | TRACK 且 \|v\| ≥ v_karnopp | 按 `sign(v)` 补库仑（比 `sign(τ)` 少在零速翻） |
-| TRACK 且 \|v\| < v_karnopp 且 \|τ_cmd\| ≥ τ_in | 按 `sign(τ_cmd)` 补，用于起步跨门槛 |
-| TRACK 且 \|v\| < v_karnopp 且 \|τ_cmd\| < τ_in | **不补**，让与门去进 CONFIRM |
+| TRACK 且 \|v\| < v_karnopp | 按 `sign(τ_cmd)` 补（粘着段也补，避免 PI 从 0 爬门槛） |
 
 `v_karnopp` 可与 `v_out` 同一量级（0.04 m/s）。不要把落地静摩擦整数值写进 `kMotorDeadband`（已有标定文档约定：NVS 只存架空电气门槛）。
 
@@ -149,7 +145,7 @@ TRACK 才允许 `compensateDeadband`。stage5 已按 Karnopp 门控（门槛复�
 
 | 模块 | 角色 |
 | --- | --- |
-| `BalanceController` | 公式不动；HOLD 时仍 `update`，输出可丢掉 |
+| `BalanceController` | 公式不动；HOLD 时仍 `update`，执行只用 pitch+rate 两项 |
 | `Safety` | 优先于 HOLD；hard fault 直接 disarm |
 | `kTorqueEps` / `applyTorque` | 执行器侧：`τ=0` 必停；非 0 跟电流环。车辆策略不再藏在这里 |
 | `kMotorCmdEps` | 仅 `applyRawPwm`（m 0/1）；m 3 走 HoldPolicy |
@@ -184,8 +180,8 @@ TRACK 才允许 `compensateDeadband`。stage5 已按 Karnopp 门控（门槛复�
 | ID | 判据 | 过关 |
 | --- | --- | --- |
 | H1 | 扶正 `r` 后 5 s 内出现 `hold=1` | 能进 |
-| H2 | HOLD 期间 `eff_L=eff_R=0` | 钳位真发生 |
-| H3 | HOLD 期间 `\|v\|<0.02` 且 `x` 峰峰值 ≤ 3 cm（≥10 s 窗） | 静摩擦锁住 |
+| H2 | HOLD 期间 `eff` 小而同号（重力补偿），不是强制 0 | 电机在顶，不是开环滑行 |
+| H3 | HOLD 期间 `\|v\|<0.02` 且 `x` 峰峰值 ≤ 3 cm（≥10 s 窗） | 钉在进入位置 |
 | H4 | 轻推后 `hold=0`，LQR 拉回，能再次 HOLD | 或门唤醒 |
 | H5 | `v 0.1` 期间 `hold` 恒 0 | 指令优先 |
 | H6 | 故意靠盒子再拿开：拿开后允许短暂 TRACK，不得把「顶住时的假零速」当成 HOLD 验收 | 外约束无效 |
@@ -198,9 +194,9 @@ H3 做不到先查 trim，再查确认时间是否太短/太长，最后才动 `
 
 不新建 backend 类。一个 `bool hold` + 一个计数器即可。
 
-1. **车辆级与门 + CONFIRM + 两轮同时 PWM=0**（策略从 `applyTorque` 的 `|τ|` 回差里搬上来）。遥测 `hold=`。过 H1/H2/H4/H5。  
-2. **打开位置门 + 进 HOLD 时 rebase `pos_ref`**。过 H3。  
-3. **TRACK 才 `compensateDeadband`，零速且小 τ 不补**（§5）。消灭 HOLD 之外的 ±10% 继电器。  
+1. **车辆级与门 + CONFIRM**（策略从 `applyTorque` 的 `|τ|` 回差里搬上来）。遥测 `hold=`。过 H1/H4/H5。  
+2. **进 HOLD 时 rebase `pos_ref`，只出 pitch+rate**。过 H2/H3。  
+3. **死区前馈常开**（§5）。重力项和粘着段都要穿死区。  
 4. （可选）很弱的 trim 偏置观测 / 位置积分。这是常值扰动，不是 in-position 本身。
 
 第 1 步未过之前不要加 `y`（`k_s`）：位置项大会把 `|τ|` 顶出窗，HOLD 更进不去。
@@ -215,7 +211,7 @@ H3 做不到先查 trim，再查确认时间是否太短/太长，最后才动 `
 | 左右 | 分轮可能一停一转 | 整车同一状态 |
 | 时间 | 当拍进/出 | 进入确认、退出立即 |
 | 对消 | 20 cm 对消后可停 | 位置门拒绝 |
-| 死区前馈 | 仍可能在临界点抬 PWM | HOLD 内禁止；TRACK 才补 |
+| 死区前馈 | 临界点抬 PWM | HOLD/TRACK 都开，方向跟 τ 或 v |
 | 指令 | 不看 `v_cmd` | 跟速强制 TRACK |
 
 `τ_eps` 借了 LQR 的权重，但不是 in-position。工业质量来自 **与门、确认、整车钳位、动停分律**；本框架按这个接到现有 200 Hz 单环上，不改 LQR 公式、不加仿真级模块。

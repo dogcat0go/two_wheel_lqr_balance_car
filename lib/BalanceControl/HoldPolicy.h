@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // 车辆级 in-position（TRACK / CONFIRM / HOLD）。
-// 不进 LQR 公式、不碰电流环：只根据状态盒子决定「两轮是否同时钳位」。
+// 不进 LQR 公式、不碰电流环：只根据状态盒子决定「两轮是否同时切到重力补偿」。
 // 进入 = 与门 + 饱和计数（满足 +1 / 不满足或退出 -1，下限 0）；退出 = 或门、当拍。左右必须同一状态。
 // 与 BalanceController 同层，stage2 / stage5 共用；阈值由调用方注入。
 class HoldPolicy {
