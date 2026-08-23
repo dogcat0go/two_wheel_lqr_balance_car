@@ -128,7 +128,9 @@ constexpr float   kCalibRampPctPerTick = 0.15f; // 每拍 duty 增量 (%)，200H
 constexpr float   kCalibDutyMaxPct     = 40.0f; // 爬升上限 (%)，到顶仍不转则记上限并报警
 constexpr int32_t kCalibTicksThresh    = 6;     // 判起转的编码器增量 (ticks，约 0.8mm)；空载灵敏
 constexpr int     kCalibSettleTicks    = 80;    // 阶段间停等拍数 (~0.4s) 让轮停稳
-constexpr float   kCalibScale          = 0.7f;  // 存库前欠补系数（宁欠勿过，防低速极限环）
+// 存库前欠补系数。0.7 实测欠补：地面起转 duty 8~10%、τ 攒到 3~6×eps 才蹬出（stage6 E4 log），
+// 粘着占比 20% 的张弛极限环即由此来。0.85 折中；若出现高频抖动(过补)退 0.80，仍粘再试 0.90。
+constexpr float   kCalibScale          = 0.85f;
 // r 前探轮（DeadbandCalibrator::requestArm）。false=发 r 直接武装，不推轮。
 constexpr bool    kPrearmEnable        = true;
 constexpr float   kPrearmProbeA        = 0.30f; // 探轮电流 (A)，两轮同向
