@@ -36,9 +36,12 @@ public:
     float lastDuty() const { return last_duty_; }
 
     // 死区标定用：绕过死区前馈直接下发原始 duty；标定完把测得门槛写回。
+    // 死区分方向存（实测正反可差 2 倍以上，平均值对粘的方向必欠补）；[0]=正/前进 [1]=反/后退
     void writePwmRaw(float duty) { writePwm(duty); }
-    void setDeadband(float d) { params_.deadband = d; }
-    float deadband() const { return params_.deadband; }
+    void setDeadband(float d) { db_[0] = d; db_[1] = d; }
+    void setDeadbands(float fwd, float rev) { db_[0] = fwd; db_[1] = rev; }
+    float deadbandFwd() const { return db_[0]; }
+    float deadbandRev() const { return db_[1]; }
 
 private:
     float compensateDeadband(float duty, float dir) const; // 唯一死区前馈；dir=0 跟 duty
@@ -47,6 +50,7 @@ private:
 private:
     Esp32McpwmMotor* driver_ = nullptr;
     Params params_{};
+    float db_[2] = {0.0f, 0.0f}; // 死区前馈 (%)：[0]=正向 [1]=反向
     float integ_ = 0.0f;
     float last_duty_ = 0.0f;
     bool  torque_rest_ = true; // applyTorque 休息区状态（回差）

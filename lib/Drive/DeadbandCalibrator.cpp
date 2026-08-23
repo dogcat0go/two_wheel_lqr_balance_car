@@ -19,23 +19,28 @@ void DeadbandCalibrator::init(WheelActuator* actuators, WheelSensor* sensors,
 
 void DeadbandCalibrator::loadStored(float default_l, float default_r)
 {
+    // 分方向键 dbLf/dbLr/dbRf/dbRr；无记录回退旧单值键 dbL/dbR，再回退 config 默认
     Preferences prefs;
     prefs.begin(kNvsNamespace, true);
-    float dbL = prefs.getFloat("dbL", default_l);
-    float dbR = prefs.getFloat("dbR", default_r);
+    const float dbL = prefs.getFloat("dbL", default_l);
+    const float dbR = prefs.getFloat("dbR", default_r);
+    float db[4] = {prefs.getFloat("dbLf", dbL), prefs.getFloat("dbLr", dbL),
+                   prefs.getFloat("dbRf", dbR), prefs.getFloat("dbRr", dbR)};
     prefs.end();
     const float sane_max = 0.6f * p_.duty_max_pct;
-    if (!(dbL >= 0.0f && dbL < sane_max)) {
-        Serial.printf("deadband: stored L=%.2f%% out of range, fallback %.2f%%\n", dbL, default_l);
-        dbL = default_l;
+    static const char* kName[4] = {"Lf", "Lr", "Rf", "Rr"};
+    for (int i = 0; i < 4; i++) {
+        const float fb = (i < 2) ? default_l : default_r;
+        if (!(db[i] >= 0.0f && db[i] < sane_max)) {
+            Serial.printf("deadband: stored %s=%.2f%% out of range, fallback %.2f%%\n",
+                          kName[i], db[i], fb);
+            db[i] = fb;
+        }
     }
-    if (!(dbR >= 0.0f && dbR < sane_max)) {
-        Serial.printf("deadband: stored R=%.2f%% out of range, fallback %.2f%%\n", dbR, default_r);
-        dbR = default_r;
-    }
-    act_[0].setDeadband(dbL);
-    act_[1].setDeadband(dbR);
-    Serial.printf("deadband: L=%.2f%% R=%.2f%% (NVS or default)\n", dbL, dbR);
+    act_[0].setDeadbands(db[0], db[1]);
+    act_[1].setDeadbands(db[2], db[3]);
+    Serial.printf("deadband: L=%.2f/%.2f%% R=%.2f/%.2f%% fwd/rev (NVS or default)\n",
+                  db[0], db[1], db[2], db[3]);
 }
 
 bool DeadbandCalibrator::ticksMoved(int wheel, float dir) const
@@ -210,15 +215,24 @@ void DeadbandCalibrator::update(float e_pitch, float omega)
         return;
     }
 
-    const float dbL = p_.scale * 0.5f * (meas_[0][0] + meas_[0][1]);
-    const float dbR = p_.scale * 0.5f * (meas_[1][0] + meas_[1][1]);
-    act_[0].setDeadband(dbL);
-    act_[1].setDeadband(dbR);
+    // 分方向存：meas_[w][0]=正向门槛、[1]=反向门槛（实测正反可差 2 倍，平均必欠补粘的方向）
+    const float dbLf = p_.scale * meas_[0][0];
+    const float dbLr = p_.scale * meas_[0][1];
+    const float dbRf = p_.scale * meas_[1][0];
+    const float dbRr = p_.scale * meas_[1][1];
+    act_[0].setDeadbands(dbLf, dbLr);
+    act_[1].setDeadbands(dbRf, dbRr);
     Preferences prefs;
     prefs.begin(kNvsNamespace, false);
-    prefs.putFloat("dbL", dbL);
-    prefs.putFloat("dbR", dbR);
+    prefs.putFloat("dbLf", dbLf);
+    prefs.putFloat("dbLr", dbLr);
+    prefs.putFloat("dbRf", dbRf);
+    prefs.putFloat("dbRr", dbRr);
+    // 旧单值键同步写均值，回滚旧固件时仍可用
+    prefs.putFloat("dbL", 0.5f * (dbLf + dbLr));
+    prefs.putFloat("dbR", 0.5f * (dbRf + dbRr));
     prefs.end();
-    Serial.printf("calib: done dbL=%.2f%% dbR=%.2f%% saved to NVS\n", dbL, dbR);
+    Serial.printf("calib: done dbL=%.2f/%.2f%% dbR=%.2f/%.2f%% fwd/rev saved to NVS\n",
+                  dbLf, dbLr, dbRf, dbRr);
     kind_ = kIdle;
 }

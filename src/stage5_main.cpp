@@ -520,8 +520,9 @@ void setup()
     Serial.printf("hint: u <rad/m> v_dc trim servo (def %.3f, tau~15s); u 0 off\n",
                   cfg::kTrimServoK);
     Serial.println("hint: s=stop; after s send m 3 then r (arm); b=deadband calib");
-    Serial.printf("deadband: L=%.2f%% R=%.2f%% (NVS or default)\n",
-                  actuators[cfg::kLeft].deadband(), actuators[cfg::kRight].deadband());
+    Serial.printf("deadband: L=%.2f/%.2f%% R=%.2f/%.2f%% fwd/rev (NVS or default)\n",
+                  actuators[cfg::kLeft].deadbandFwd(), actuators[cfg::kLeft].deadbandRev(),
+                  actuators[cfg::kRight].deadbandFwd(), actuators[cfg::kRight].deadbandRev());
 }
 
 void loop()

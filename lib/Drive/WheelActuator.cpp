@@ -6,6 +6,7 @@ void WheelActuator::init(Esp32McpwmMotor* driver, const Params& params)
 {
     driver_ = driver;
     params_ = params;
+    db_[0] = db_[1] = params_.deadband;
     driver_->attachMotor(params_.motor_id, params_.pin_a, params_.pin_b);
     integ_ = 0.0f;
     last_duty_ = 0.0f;
@@ -22,14 +23,18 @@ float WheelActuator::compensateDeadband(float duty, float dir) const
 {
     if (duty > params_.max_duty) duty = params_.max_duty;
     if (duty < -params_.max_duty) duty = -params_.max_duty;
-    if (params_.deadband <= 0.0f || duty == 0.0f) {
+    if (duty == 0.0f) {
         return duty;
     }
     const float s = (dir > 1e-9f) ? 1.0f
                   : (dir < -1e-9f) ? -1.0f
                   : (duty > 0.0f ? 1.0f : -1.0f);
-    const float span = params_.max_duty - params_.deadband;
-    return s * params_.deadband + duty * span / params_.max_duty;
+    const float db = (s > 0.0f) ? db_[0] : db_[1];
+    if (db <= 0.0f) {
+        return duty;
+    }
+    const float span = params_.max_duty - db;
+    return s * db + duty * span / params_.max_duty;
 }
 
 void WheelActuator::writePwm(float duty)
