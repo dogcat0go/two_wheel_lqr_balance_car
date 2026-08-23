@@ -220,12 +220,13 @@ static void control_task(void* param)
         const bool on_slope = fabsf(sin_eff) > cfg::kSlopeSinDeadzone;
 
         trim_servo.setK(cmd.trim_servo_k); // 串口 u；u 0 关伺服
+        // HOLD 冻 bias：PWM=0 滑行时 v_dc 不再度量 trim 误差，积进去是污染
         const float trim_bias = trim_servo.update({
             .balancing = balancing,
             .vel = x.vel,
             .v_cmd = v_cmd,
             .pitch_cmd = cmd.pitch_ref_rad,
-            .freeze = on_slope,
+            .freeze = on_slope || hold.holding(),
         });
 
         // x_ref：trim + 伺服偏置 + 速度倾角前馈 + θ_eq；位置随 v_smooth 积分
