@@ -93,6 +93,35 @@ void CurrentSensor::update(bool track_zero)
         return;
     }
     voltage_v_ = readVoltage();
+
+    // 量程合理性门：断线/输出拉轨时读数钉在物理不可能的值（E2_v1 实测 -11.7A）。
+    // 超限样本不进低通、不进零点跟踪，只更新 raw 供遥测抓现场；
+    // 恢复确认期内闭环侧仍视为故障，确认满拍后用当前 raw 重播种低通。
+    if (params_.fault_abs_a > 0.0f) {
+        const float probe_a =
+            params_.sign * (voltage_v_ - v_zero_) / params_.sensitivity_v_per_a;
+        if (fabsf(probe_a) > params_.fault_abs_a) {
+            current_raw_a_ = probe_a;
+            good_n_ = 0;
+            if (bad_n_ < params_.fault_ticks) {
+                bad_n_++;
+            }
+            if (bad_n_ >= params_.fault_ticks) {
+                fault_ = true;
+            }
+            return;
+        }
+        bad_n_ = 0;
+        if (fault_) {
+            current_raw_a_ = probe_a;
+            if (++good_n_ >= params_.recover_ticks) {
+                fault_ = false;
+                current_lpf_a_ = probe_a;
+            }
+            return;
+        }
+    }
+
     if (track_zero && params_.zero_track_alpha > 0.0f) {
         constexpr float kZeroTrackClampV = 0.05f; // ±0.05V ≈ ±270mA @185mV/A
         v_zero_ += params_.zero_track_alpha * (voltage_v_ - v_zero_);

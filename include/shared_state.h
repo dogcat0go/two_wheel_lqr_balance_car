@@ -33,6 +33,7 @@ struct ControlSnapshot {
     float    tau_nm[2];         // 轮端力矩指令 (N·m)；m 2/3 有值，PWM 为 0
     float    current_a[2];      // 左右电流低通后 (A)，正 = 该轮前进
     float    current_raw_a[2];  // 本拍原始 (A)
+    uint8_t  isense_fault;      // 电流通道量程门：bit0=L bit1=R，1=该路已降级开环
     float    i_ref_a[2];        // 开环电流目标 (A)；PWM 开环/平衡为 0
     float    terms[5];          // BalanceController::Term 各分量，判振源用
     uint32_t ctrl_hz;        // 实测控制频率，看有没有掉拍

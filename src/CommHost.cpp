@@ -537,13 +537,15 @@ static void comm_task(void* param)
             char line[kLogCap];
             if (s.mode == 0) {
                 snprintf(line, sizeof(line),
-                         "m=0 hz=%u ovr=%u fault=0x%02X%s%s%s | "
+                         "m=0 hz=%u ovr=%u fault=0x%02X%s%s%s%s%s | "
                          "iL=%.3fA iR=%.3fA craw=%.3f/%.3f iref=%.3f/%.3f "
                          "eff=%.1f/%.1f%% v=%.3f/%.3f ticks=%ld/%ld\n",
                          s.ctrl_hz, s.overrun_count, s.fault,
                          (s.fault & Safety::kFall) ? " FALL" : "",
                          (s.fault & Safety::kImuLost) ? " IMU_LOST" : "",
                          (s.fault & Safety::kCmdTimeout) ? " CMD_TIMEOUT" : "",
+                         (s.isense_fault & 1) ? " ISENSE_L" : "",
+                         (s.isense_fault & 2) ? " ISENSE_R" : "",
                          s.current_a[cfg::kLeft], s.current_a[cfg::kRight],
                          s.current_raw_a[cfg::kLeft], s.current_raw_a[cfg::kRight],
                          s.i_ref_a[cfg::kLeft], s.i_ref_a[cfg::kRight],
@@ -552,7 +554,7 @@ static void comm_task(void* param)
                          (long)s.wheel_ticks[cfg::kLeft], (long)s.wheel_ticks[cfg::kRight]);
             } else {
                 snprintf(line, sizeof(line),
-                         "m=%u arm=%u hold=%u hN=%u hz=%u ovr=%u fault=0x%02X%s%s%s | pitch=%.2f acc=%.2f ref=%.2f deg "
+                         "m=%u arm=%u hold=%u hN=%u hz=%u ovr=%u fault=0x%02X%s%s%s%s%s | pitch=%.2f acc=%.2f ref=%.2f deg "
                          "ainj=%.2f seff=%.3f teq=%.2f tff=%.3f "
                          "rate=%.2f ax=%.2f ay=%.2f az=%.2f | yaw=%.1f/%.1f deg wz=%.2f uy=%.1f ui=%.3f | "
                          "u pit=%.3f rate=%.3f pos=%.3f vel=%.3f int=%.3f | "
@@ -562,6 +564,8 @@ static void comm_task(void* param)
                          (s.fault & Safety::kFall) ? " FALL" : "",
                          (s.fault & Safety::kImuLost) ? " IMU_LOST" : "",
                          (s.fault & Safety::kCmdTimeout) ? " CMD_TIMEOUT" : "",
+                         (s.isense_fault & 1) ? " ISENSE_L" : "",
+                         (s.isense_fault & 2) ? " ISENSE_R" : "",
                          s.pitch_rad * 57.2957795f, s.pitch_acc_rad * 57.2957795f,
                          s.pitch_ref_rad * 57.2957795f,
                          s.alpha_inj_rad * 57.2957795f, s.sin_eff,

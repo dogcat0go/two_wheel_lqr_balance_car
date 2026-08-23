@@ -323,15 +323,22 @@ static void control_task(void* param)
                                ? ((i == cfg::kLeft) ? v_l : v_r)
                                : tau_nm);
                     i_ref = hard_fault ? 0.0f : tau_nm / cfg::kTorquePerAmp[i];
+                    // 电流通道量程门挂了 → 反馈用 i_ref 顶替（PI 误差恰为 0，
+                    // 积分冻结、只剩死区前馈），无扰降级为开环；不切电机——
+                    // 平衡中断电必摔，降级后仍按 τ 前馈站得住。
+                    const float i_meas = current_sensors[i].healthy()
+                        ? current_sensors[i].current() : i_ref;
                     actuators[i].applyTorque(hard_fault ? 0.0f : tau_nm,
-                                             current_sensors[i].current(),
+                                             i_meas,
                                              cfg::kCtrlDt, db_ff && !hard_fault,
                                              ff_dir);
                 }
                 snap.effort[i] = actuators[i].lastDuty();
             } else if (cmd.mode == 0 && !cmd_lost && cmd.use_current[i]) {
                 i_ref = hard_fault ? 0.0f : cmd.test_current[i];
-                actuators[i].applyCurrent(i_ref, current_sensors[i].current(),
+                actuators[i].applyCurrent(i_ref,
+                                          current_sensors[i].healthy()
+                                              ? current_sensors[i].current() : i_ref,
                                           cfg::kCtrlDt);
                 snap.effort[i] = actuators[i].lastDuty();
             } else if (cmd.mode == 0 && !cmd_lost) {
@@ -372,6 +379,9 @@ static void control_task(void* param)
         snap.current_a[cfg::kRight] = current_sensors[cfg::kRight].current();
         snap.current_raw_a[cfg::kLeft] = current_sensors[cfg::kLeft].currentRaw();
         snap.current_raw_a[cfg::kRight] = current_sensors[cfg::kRight].currentRaw();
+        snap.isense_fault =
+            (current_sensors[cfg::kLeft].healthy() ? 0 : 1) |
+            (current_sensors[cfg::kRight].healthy() ? 0 : 2);
         snap.imu_ok = ahrs.ok();
         snap.armed = armed;
         snap.hold = hold.holding() ? 1 : 0;
@@ -453,6 +463,9 @@ void setup()
             .lpf_alpha = cfg::kCurrentLpfAlpha[i],
             .zero_samples = cfg::kCurrentZeroSamples[i],
             .zero_track_alpha = cfg::kCurrentZeroTrackAlpha,
+            .fault_abs_a = cfg::kCurrentFaultAbsA,
+            .fault_ticks = cfg::kCurrentFaultTicks,
+            .recover_ticks = cfg::kCurrentRecoverTicks,
         });
         current_sensors[i].calibrateZero();
         Serial.printf("CurrentSensor[%d] GPIO%d zero=%.3fV sens=%.0fmV/A sign=%.0f\n",

@@ -18,6 +18,11 @@ public:
         float lpf_alpha;           // 一阶低通 (0~1]，1 = 不滤波
         int   zero_samples;        // calibrateZero() 平均采样数
         float zero_track_alpha; // 在线零点跟踪系数；0=关（不填=0）
+        // 量程合理性门：|I_raw| > fault_abs_a 连续 fault_ticks 拍挂故障，
+        // 连续 recover_ticks 拍回到量程内才解除；0=关（不填=0）
+        float fault_abs_a;
+        int   fault_ticks;
+        int   recover_ticks;
     };
 
     void init(const Params& params);
@@ -34,6 +39,8 @@ public:
     float voltage() const { return voltage_v_; }         // V，本拍 ADC 电压
     float zeroVoltage() const { return v_zero_; }        // V，校零结果
     bool  ok() const { return ok_; }
+    // false = 读数钉在物理不可能的值（断线/输出拉轨），闭环侧应弃用 current()
+    bool  healthy() const { return ok_ && !fault_; }
 
 private:
     float readVoltage();
@@ -47,4 +54,7 @@ private:
     float  voltage_v_ = 0.0f;
     float  current_raw_a_ = 0.0f;
     float  current_lpf_a_ = 0.0f;
+    bool   fault_ = false;
+    int    bad_n_ = 0;
+    int    good_n_ = 0;
 };

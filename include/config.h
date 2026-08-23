@@ -96,6 +96,13 @@ constexpr int   kCurrentZeroSamples[2] = {100, 100};       // 上电零点平均
 constexpr float kCurrentZeroTrackAlpha  = 0.0025f; // τ=dt/α≈2s；0=关
 constexpr int   kCurrentZeroSettleTicks = 40;      // PWM 归零后停等 0.2s
 constexpr float kCurrentZeroSpeedEps    = 0.01f;   // m/s，轮速门
+// 量程合理性门（E2_v1 实测：右通道曾被钉在 -11.7A 达 18s，断线/接触所致）。
+// |I_raw| 超限连续 N 拍 → 该通道挂故障：闭环侧用 i_ref 顶替反馈（err=0，
+// 无扰降级为前馈开环），零点跟踪/低通同时冻结；恢复需连续 M 拍回到量程内。
+// 不触发硬 fault——平衡中切电机必摔，降级还能站。0 = 关。
+constexpr float kCurrentFaultAbsA    = 4.0f; // A；ACS712-05B 满量程 ±5A，堵转 <3A
+constexpr int   kCurrentFaultTicks   = 2;    // 连续超限拍数（10ms @200Hz）
+constexpr int   kCurrentRecoverTicks = 200;  // 连续正常拍数才解除（1s）
 constexpr float kCurrentMaxA = 2.5f;   // 开环 |I_ref| 上限 (A)
 constexpr float kCurrentKp   = 80.0f;  // 电流 PI，%/A
 constexpr float kCurrentKi   = 160.0f;  // 电流 PI，%/(A·s)
