@@ -67,6 +67,13 @@
 
 ## 4. 每轮 log 的固定统计口径（可比性的关键）
 
+修剪后的 log / CSV 直接跑：
+
+```text
+python3 tools/limit_cycle_metrics.py logs/e4.csv
+python3 tools/limit_cycle_metrics.py logs/wifi.log --all   # 已修剪、不裁窗
+```
+
 稳态段（去掉武装后前 20s 与结尾 5s）算：
 
 - 粘着占比、粘着段数/平均时长/最长；
