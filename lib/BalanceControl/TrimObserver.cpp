@@ -92,11 +92,17 @@ float TrimObserver::update(const Sample& s)
 
     v_dc_ += p_.vdc_alpha * (s.vel - v_dc_);
 
+    // E3 伺服：往前爬(v_dc>0)说明 ref 偏前于 θ*，往回拧。累计增量 = −k·净爬行距离。
+    // 门控：balancing(上方已 return)、无速度指令、非坡上(freeze)。
+    if (p_.servo_k > 0.0f && !s.freeze && fabsf(s.v_cmd) < p_.v_cmd_eps) {
+        bias_ = clampf(bias_ - p_.servo_k * v_dc_ / p_.ctrl_hz, p_.servo_limit_rad);
+    }
+
     if (s.freeze) {
         coast_ = false;
         quiet_n_ = 0;
         resetWindow();
-        return p_.enable ? bias_ : 0.0f;
+        return bias();
     }
 
     if (!omega_init_) {
@@ -112,7 +118,7 @@ float TrimObserver::update(const Sample& s)
     if (!p_.enable) {
         coast_ = false;
         was_holding_ = s.holding;
-        return 0.0f;
+        return bias();
     }
 
     if (!s.holding) {

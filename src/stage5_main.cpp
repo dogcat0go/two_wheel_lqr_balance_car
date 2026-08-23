@@ -35,7 +35,7 @@
 //
 //   [快照] 本拍填 ControlSnapshot，publishSnapshot 自旋锁拷给 Core0
 //
-// 串口：k kθ kω ks kv（N·m）；z 航向 P；n 轮速差 k_sync；t trim；q 坡角；h gain；v/a；r 探轮后武装；s 停机
+// 串口：k kθ kω ks kv（N·m）；z 航向 P；n 轮速差 k_sync；t trim；u v_dc伺服k；q 坡角；h gain；v/a；r 探轮后武装；s 停机
 // ============================================================
 
 #include <Arduino.h>
@@ -221,6 +221,7 @@ static void control_task(void* param)
         const float tau_ff = cfg::kMgrNm * sin_eff;
         const bool on_slope = fabsf(sin_eff) > cfg::kSlopeSinDeadzone;
 
+        trim_obs.setServoK(cmd.trim_servo_k); // 串口 u；u 0 关伺服
         const float trim_bias = trim_obs.update({
             .balancing = balancing,
             .holding = hold.holding(),
@@ -505,6 +506,8 @@ void setup()
         .ctrl_hz = (float)cfg::kCtrlHz,
         .v_cmd_eps = cfg::kHoldVCmdEps,
         .limit_rad = cfg::kTrimObsLimitDeg * 0.0174532925f,
+        .servo_k = cfg::kTrimServoK,
+        .servo_limit_rad = cfg::kTrimServoLimitDeg * 0.0174532925f,
     });
 
     Serial.println("IMU calibrating, keep still...");
@@ -534,6 +537,8 @@ void setup()
     Serial.println("hint: k kth komega ks kv (N.m); z heading P; n wheel-sync k_sync; j heading I");
     Serial.println("hint: v <m/s> a <rad/s> (or ROS /cmd_vel); g <deg/(m/s)> k_ff");
     Serial.println("hint: q <deg> slope inject (not trim); h <0-1> gain (def 0.5); q 0 off");
+    Serial.printf("hint: u <rad/m> v_dc trim servo (def %.3f, tau~15s); u 0 off\n",
+                  cfg::kTrimServoK);
     Serial.println("hint: s=stop; after s send m 3 then r (arm); b=deadband calib");
     Serial.printf("deadband: L=%.2f%% R=%.2f%% (NVS or default)\n",
                   actuators[cfg::kLeft].deadband(), actuators[cfg::kRight].deadband());

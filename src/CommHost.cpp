@@ -56,6 +56,7 @@ static float k_yaw_integ = cfg::kGainYawIntegNm; // stage5 航向积分 ki（串
 static float k_vff = cfg::kGainVelToPitch; // 速度→倾角前馈, rad/(m/s)；串口 g 输入 deg/(m/s)
 static float alpha_inj_rad = 0.0f;         // 串口 q，开环坡角；断电丢失
 static float slope_gain = cfg::kSlopeGain; // 串口 h，0~1
+static float trim_servo_k = cfg::kTrimServoK; // 串口 u，E3 v_dc trim 伺服 k (rad/m)
 
 static volatile float    ros_linear_x = 0.0f;
 static volatile float    ros_angular_z = 0.0f;
@@ -202,6 +203,7 @@ static void applyCommandLine(const char* raw)
         angular_z = clampAngular(value);
         break;
     case 't': pitch_ref_rad = value * 0.0174532925f; break;
+    case 'u': trim_servo_k = value > 0.0f ? value : 0.0f; break; // E3 伺服 k (rad/m)，u 0 关
     case 'f': telemetry_ms = (uint32_t)(value < 20.0f ? 20.0f : value); break;
     case 'r': reset_seq++; break;
     case 'b': // 死区自标定：架空(轮子悬空)后触发，逐轮正反斜坡找起转门槛
@@ -264,10 +266,11 @@ static void applyCommandLine(const char* raw)
     snprintf(buf, sizeof(buf),
              "cmd ok: %s -> m=%u lqr kth=%.6g kom=%.6g ks=%.6g kv=%.6g "
              "kz=%.4g kn=%.4g kj=%.4g trim=%.2fdeg ainj=%.2fdeg h=%.2f "
-             "vref=%.3f aref=%.3f link=%d\n",
+             "u=%.4g vref=%.3f aref=%.3f link=%d\n",
              line.c_str(), mode, lqr_gains[0], lqr_gains[1], lqr_gains[2], lqr_gains[3],
              k_yaw, k_yaw_rate, k_yaw_integ, pitch_ref_rad * 57.2957795f,
-             alpha_inj_rad * 57.2957795f, slope_gain, linear_x, angular_z, link_up);
+             alpha_inj_rad * 57.2957795f, slope_gain, trim_servo_k,
+             linear_x, angular_z, link_up);
 #else
     if (mode == 3) {
         snprintf(buf, sizeof(buf),
@@ -513,6 +516,7 @@ static void comm_task(void* param)
             cmd.k_vff = k_vff;
             cmd.alpha_inj_rad = alpha_inj_rad;
             cmd.slope_gain = slope_gain;
+            cmd.trim_servo_k = trim_servo_k;
             cmd.lqr_gains[0] = lqr_gains[0];
             cmd.lqr_gains[1] = lqr_gains[1];
             cmd.lqr_gains[2] = lqr_gains[2];

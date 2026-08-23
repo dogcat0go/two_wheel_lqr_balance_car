@@ -68,6 +68,7 @@ struct CommandInput {
     float    k_vff;        // 速度→倾角前馈, rad/(m/s)：θ_ref = trim + k_vff·linear_x
     float    alpha_inj_rad; // 串口 q，开环坡角 (rad)；0=补偿关
     float    slope_gain;    // 串口 h，0~1；两半同乘
+    float    trim_servo_k;  // 串口 u，E3 v_dc trim 伺服 k (rad/m)；0=关
     uint32_t reset_seq;    // 递增即视为一次复位请求（清故障锁存 + 清积分）
     uint32_t calib_seq;    // 递增触发一次死区自标定（串口 b）
 };

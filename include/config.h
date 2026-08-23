@@ -221,6 +221,10 @@ constexpr float kTrimObsFallDeg      = 0.2f;  // 窗内 |Δpitch| 小于此 = �
 constexpr float kTrimObsAlphaMax     = 0.6f;  // hunting 入门用；HOLD 内 θ̈ 是测量不是门
 constexpr float kTrimObsAlphaLpf     = 0.02f;
 constexpr float kTrimObsLimitDeg     = 5.0f;
+// E3 v_dc trim 伺服（替代上面的倾倒观测）：bias += −k·v_dc·dt，每净爬 1m 拧回 k rad。
+// 收敛时标 τ = k_vel/(k_pitch·k) ≈ 0.42/(1.85·k)：k=0.015 → τ≈15s。串口 u 在线改，u 0 关。
+constexpr float kTrimServoK        = 0.015f; // rad/m
+constexpr float kTrimServoLimitDeg = 2.0f;   // bias 限幅；顶满说明另有故障
 
 // ---- micro-ROS WiFi（与 src/main.cpp / 历史工程一致；只跑在 Core0）----
 // true：遥测/应答经 /fishbot/log 转发，命令走 /fishbot/cmd（电脑端 tools/fishbot_wifi_bridge.py）
