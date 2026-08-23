@@ -211,17 +211,7 @@ constexpr float kHoldPosOut      = 0.06f;
 constexpr float kHoldVCmdEps     = 0.01f; // m/s
 constexpr int   kHoldEnterTicks  = 20;    // 100 ms @ 200 Hz
 // TRACK 死区前馈 Karnopp：门槛复用 vel_in/out 与 kTorqueEps；粘着+小 τ 不补
-// trim 观测：倾倒前降后升；连续 HOLD 满 10 窗且站住才 ref=pitch。
-constexpr bool  kTrimObsEnable       = false;
-constexpr int   kTrimObsPeriodTicks  = 100;   // 0.5s 看一段 Δpitch
-constexpr int   kTrimObsHoldSnapN    = 10;    // 连续 HOLD 窗数，满了且站住 → ref=pitch
-constexpr float kTrimObsStep0Deg     = 0.1f;  // 倾倒单次改 ref 上限
-constexpr float kTrimObsStepMinDeg   = 0.01f;
-constexpr float kTrimObsFallDeg      = 0.2f;  // 窗内 |Δpitch| 小于此 = 站住
-constexpr float kTrimObsAlphaMax     = 0.6f;  // hunting 入门用；HOLD 内 θ̈ 是测量不是门
-constexpr float kTrimObsAlphaLpf     = 0.02f;
-constexpr float kTrimObsLimitDeg     = 5.0f;
-// E3 v_dc trim 伺服（替代上面的倾倒观测）：bias += −k·v_dc·dt，每净爬 1m 拧回 k rad。
+// E3 v_dc trim 伺服：bias += −k·v_dc·dt，每净爬 1m 拧回 k rad。
 // 收敛时标 τ = k_vel/(k_pitch·k) ≈ 0.42/(1.85·k)：k=0.015 → τ≈15s。串口 u 在线改，u 0 关。
 constexpr float kTrimServoK        = 0.015f; // rad/m
 constexpr float kTrimServoLimitDeg = 2.0f;   // bias 限幅；顶满说明另有故障

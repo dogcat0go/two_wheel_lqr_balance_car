@@ -12,7 +12,7 @@
 //
 //   [TwistRef]  cmd_vel 参考成形（串口 v/a 与 ROS /cmd_vel 同口径）
 //        v_smooth / ω_smooth 斜率限幅；pos_ref += v_smooth·dt
-//        θ_ref = trim + TrimObs + sat(k_ff·v_smooth) + θ_eq(α_inj)
+//        θ_ref = trim + TrimServo bias + sat(k_ff·v_smooth) + θ_eq(α_inj)
 //
 //   [LQR 共模]  不进偏航
 //        u_sum = K(x - x_ref) + τ_ff
@@ -47,7 +47,7 @@
 #include "CurrentSensor.h"
 #include "DeadbandCalibrator.h"
 #include "HoldPolicy.h"
-#include "TrimObserver.h"
+#include "TrimServo.h"
 #include "TwistRef.h"
 #include "YawMixer.h"
 #include "Safety.h"
@@ -64,7 +64,7 @@ static Ahrs ahrs;
 static Safety safety;
 static BalanceController balance;
 static HoldPolicy hold;
-static TrimObserver trim_obs;
+static TrimServo trim_servo;
 static TwistRef twist;
 static YawMixer yaw_mix;
 static DeadbandCalibrator calibrator;
@@ -92,7 +92,6 @@ static void control_task(void* param)
     bool     armed = false;
     float    yaw = 0.0f;       // 轮式 ψ
     bool     db_ff = true;     // Karnopp：TRACK 死区前馈使能（回差）
-    float    last_tau_half = 0.0f; // 上一拍 |u_sum|/2，交给 TrimObserver 力矩门
     int      zero_quiet_n[2] = {0, 0}; // 零点跟踪门：PWM=0 且轮停稳的连续拍数
 
     for (;;) {
@@ -203,7 +202,6 @@ static void control_task(void* param)
         if (!balancing) {
             balance.reset();
             hold.reset();
-            last_tau_half = 0.0f;
             db_ff = true;
         }
 
@@ -221,20 +219,16 @@ static void control_task(void* param)
         const float tau_ff = cfg::kMgrNm * sin_eff;
         const bool on_slope = fabsf(sin_eff) > cfg::kSlopeSinDeadzone;
 
-        trim_obs.setServoK(cmd.trim_servo_k); // 串口 u；u 0 关伺服
-        const float trim_bias = trim_obs.update({
+        trim_servo.setK(cmd.trim_servo_k); // 串口 u；u 0 关伺服
+        const float trim_bias = trim_servo.update({
             .balancing = balancing,
-            .holding = hold.holding(),
             .vel = x.vel,
-            .pitch = x.pitch,
-            .omega = x.pitch_rate,
             .v_cmd = v_cmd,
             .pitch_cmd = cmd.pitch_ref_rad,
-            .tau_half = last_tau_half,
             .freeze = on_slope,
         });
 
-        // x_ref：trim + 观测偏置 + 速度倾角前馈 + θ_eq；位置随 v_smooth 积分
+        // x_ref：trim + 伺服偏置 + 速度倾角前馈 + θ_eq；位置随 v_smooth 积分
         BalanceState ref{};
         ref.pitch = cmd.pitch_ref_rad + trim_bias + tr.pitch_ff + theta_eq;
         ref.vel   = tr.v;
@@ -244,8 +238,6 @@ static void control_task(void* param)
         float balance_u = 0.0f; // 两轮力矩之和（含 τ_ff）
         if (balancing) {
             balance_u = balance.update(x, cfg::kCtrlDt) + tau_ff;
-            last_tau_half = (hold.holding() || trim_obs.coast())
-                ? 0.0f : 0.5f * fabsf(balance_u);
         }
 
         hold.update({
@@ -296,7 +288,7 @@ static void control_task(void* param)
                 tau_nm = (i == cfg::kLeft) ? (tau_nm - u_yaw) : (tau_nm + u_yaw);
                 tau_cmd[i] = safety.limit(i, tau_nm, cfg::kCtrlDt);
             }
-            if (!hold.holding() && !trim_obs.coast()) {
+            if (!hold.holding()) {
                 v_abs = 0.5f * (fabsf(v_l) + fabsf(v_r));
                 const float tau_abs = fmaxf(fabsf(tau_cmd[0]), fabsf(tau_cmd[1]));
                 if (db_ff) {
@@ -314,7 +306,7 @@ static void control_task(void* param)
             float i_ref = 0.0f;
             const float tau_nm = tau_cmd[i];
             if (balancing) {
-                if (hold.holding() || trim_obs.coast()) {
+                if (hold.holding()) {
                     i_ref = 0.0f;
                     actuators[i].applyTorque(0.0f, current_sensors[i].current(),
                                              cfg::kCtrlDt, false);
@@ -366,7 +358,7 @@ static void control_task(void* param)
         snap.yaw_rate_rps = ahrs.yawRate();
         snap.u_yaw = u_yaw;
         snap.yaw_integ_term = u_i;
-        snap.v_dc_mps = trim_obs.vDc();
+        snap.v_dc_mps = trim_servo.vDc();
         snap.v_ref_mps = tr.v;
         snap.w_ref_rps = tr.w;
         snap.current_a[cfg::kLeft] = current_sensors[cfg::kLeft].current();
@@ -489,25 +481,12 @@ void setup()
         .integ_lim = cfg::kYawIntegTermLimit,
         .tau_max = cfg::kMaxTorque,
     });
-    trim_obs.setParams({
-        .enable = cfg::kTrimObsEnable,
+    trim_servo.setParams({
         .vdc_alpha = cfg::kVdcLpfAlpha,
-        .period_ticks = cfg::kTrimObsPeriodTicks,
-        .enter_ticks = cfg::kHoldEnterTicks,
-        .step0_rad = cfg::kTrimObsStep0Deg * 0.0174532925f,
-        .step_min_rad = cfg::kTrimObsStepMinDeg * 0.0174532925f,
-        .fall_rad = cfg::kTrimObsFallDeg * 0.0174532925f,
-        .hold_snap_n = cfg::kTrimObsHoldSnapN,
-        .vel_max = cfg::kHoldVelIn,
-        .tau_max = cfg::kTorqueEps,
-        .omega_max = cfg::kHoldOmegaIn,
-        .alpha_max = cfg::kTrimObsAlphaMax,
-        .alpha_lpf = cfg::kTrimObsAlphaLpf,
         .ctrl_hz = (float)cfg::kCtrlHz,
         .v_cmd_eps = cfg::kHoldVCmdEps,
-        .limit_rad = cfg::kTrimObsLimitDeg * 0.0174532925f,
-        .servo_k = cfg::kTrimServoK,
-        .servo_limit_rad = cfg::kTrimServoLimitDeg * 0.0174532925f,
+        .k = cfg::kTrimServoK,
+        .limit_rad = cfg::kTrimServoLimitDeg * 0.0174532925f,
     });
 
     Serial.println("IMU calibrating, keep still...");
