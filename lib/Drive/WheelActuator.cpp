@@ -72,6 +72,12 @@ void WheelActuator::applyCurrent(float i_ref, float i_meas, float dt_s,
         return;
     }
 
+    // 测量失效防御：读数超物理量程（传感器坏/线断）时按 i_meas=i_ref 处理，
+    // err=0 冻结 PI，防止电流环追幻影电流把 duty 打满
+    if (params_.i_fault_a > 0.0f && fabsf(i_meas) > params_.i_fault_a) {
+        i_meas = i_ref;
+    }
+
     const float err = i_ref - i_meas;
     float duty = params_.kp * err + params_.ki * integ_;
     const bool sat_hi = duty > params_.max_duty;

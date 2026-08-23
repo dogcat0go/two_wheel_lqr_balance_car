@@ -97,6 +97,7 @@ constexpr float kCurrentZeroTrackAlpha  = 0.0025f; // τ=dt/α≈2s；0=关
 constexpr int   kCurrentZeroSettleTicks = 40;      // PWM 归零后停等 0.2s
 constexpr float kCurrentZeroSpeedEps    = 0.01f;   // m/s，轮速门
 constexpr float kCurrentMaxA = 2.5f;   // 开环 |I_ref| 上限 (A)
+constexpr float kCurrentFaultA = 6.0f; // 读数合理性上限 (A)：超 ACS712-05B ±5A 量程=测量失效，PI 冻结防追幻影
 constexpr float kCurrentKp   = 80.0f;  // 电流 PI，%/A
 constexpr float kCurrentKi   = 160.0f;  // 电流 PI，%/(A·s)
 // 轮端有效 Kt（2026-08-14 挂重）。m 2：I_ref = τ / Kt

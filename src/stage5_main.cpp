@@ -415,6 +415,7 @@ void setup()
             .cmd_eps = cfg::kMotorCmdEps,
             .tau_eps = 0.0f, // 分轮休息关掉；车辆 HOLD 由 HoldPolicy
             .i_max = cfg::kCurrentMaxA,
+            .i_fault_a = cfg::kCurrentFaultA,
             .kt = cfg::kTorquePerAmp[i],
             .kp = cfg::kCurrentKp,
             .ki = cfg::kCurrentKi,

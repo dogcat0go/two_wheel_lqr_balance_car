@@ -17,6 +17,7 @@ public:
         float cmd_eps;
         float tau_eps; // applyTorque 休息区 (N·m)，0=关
         float i_max;
+        float i_fault_a; // 电流读数合理性上限 (A)，超量程视为测量失效；0=关
         float kt; // N·m/A，applyTorque 用
         float kp;
         float ki;
