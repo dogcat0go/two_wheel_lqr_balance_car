@@ -61,6 +61,8 @@ YawMixer::Output YawMixer::update(const Sample& s)
     }
 
     const float w_ref = turning ? s.w_ref : 0.0f;
-    const float u_sync = s.k_sync * (w_ref * p_.track + s.v_l - s.v_r);
+    // one_stuck：单轮卡住/倒下时轮速差是伪信号，同步项会劫持共模救车力矩
+    const float u_sync = s.one_stuck ? 0.0f
+        : s.k_sync * (w_ref * p_.track + s.v_l - s.v_r);
     return {clampf(u_z + u_i + u_sync, p_.tau_max), u_i, yaw_ref_, turning};
 }
