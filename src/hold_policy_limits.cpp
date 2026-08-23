@@ -19,5 +19,6 @@ HoldPolicy::Limits HoldPolicy::robotLimits(bool torque_gate)
     lim.v_cmd_eps = cfg::kHoldVCmdEps;
     lim.w_cmd_eps = cfg::kYawCmdEps;
     lim.enter_ticks = cfg::kHoldEnterTicks;
+    lim.settle_ticks = cfg::kHoldSettleTicks;
     return lim;
 }

@@ -28,6 +28,7 @@ public:
         float v_cmd_eps;     // |v_cmd| 小于此才允许进
         float w_cmd_eps;
         int   enter_ticks;   // CONFIRM 连续拍数；<=0 整策略关闭
+        int   settle_ticks;  // HOLD 进入后再观望拍数；0=不用
     };
 
     struct Sample {
