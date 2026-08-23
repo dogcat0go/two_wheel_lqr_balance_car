@@ -94,7 +94,9 @@ void CurrentSensor::update(bool track_zero)
     }
     voltage_v_ = readVoltage();
     if (track_zero && params_.zero_track_alpha > 0.0f) {
-        constexpr float kZeroTrackClampV = 0.05f; // ±0.05V ≈ ±270mA @185mV/A
+        // 实测合法温漂 ±17~24mA(≈3~5mV)，留 2 倍余量。收紧是防"静置时传感器坏读"
+        // 拖走零点(门开才生效)；驱动中的假读数它管不到，靠 i_fault_a 与修硬件。
+        constexpr float kZeroTrackClampV = 0.01f; // ±0.01V ≈ ±54mA @185mV/A
         v_zero_ += params_.zero_track_alpha * (voltage_v_ - v_zero_);
         if (v_zero_ > v_zero_ref_ + kZeroTrackClampV) {
             v_zero_ = v_zero_ref_ + kZeroTrackClampV;
