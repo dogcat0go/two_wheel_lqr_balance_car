@@ -82,7 +82,7 @@ CONFIRM ──条件断开──► TRACK                            │
 
 | 通道 | 进入 | 退出（任一超限即醒） | 初值（按本车 log / \(K\)） | 物理含义 |
 | --- | --- | --- | --- | --- |
-| 倾角 | \(\|e_\theta\|<\theta_{\mathrm{in}}\) | \(\|e_\theta\|>\theta_{\mathrm{out}}\) | 0.4° / 0.8° | 静摩擦能撑住的歪角；\(l=2\,\mathrm{cm}\) 很敏感 |
+| 倾角 | TRACK 不看 trim；HOLD 看 \(\|\theta-\theta_{\mathrm{latch}}\|\) | 相对 latch 超 \(\theta_{\mathrm{out}}\) | 0.4° / 0.8° | 粘着姿态离 trim 常有 2°，对 trim 进不去 |
 | 倾角速率 | \(\|\dot\theta\|<\omega_{\mathrm{in}}\) | \(\|\dot\theta\|>\omega_{\mathrm{out}}\) | 0.12 / 0.25 rad/s | 还在倒就不要停电机 |
 | 轮速 | \(\|v\|<v_{\mathrm{in}}\) | \(\|v\|>v_{\mathrm{out}}\) | 0.02 / 0.04 m/s | 「人眼已停」 |
 | 位置 | \(\|e_s\|<s_{\mathrm{in}}\) | \(\|e_s\|>s_{\mathrm{out}}\) | 3 cm / 6 cm | 禁止在偏了 20 cm 时假装该停 |
@@ -109,11 +109,11 @@ CONFIRM ──条件断开──► TRACK                            │
 
 **做：**
 
-1. 两轮出 `(kθ·eθ + kω·ω)/2`，死区前馈跟 τ。倒立摆 PWM=0 是开环，静摩擦撑不住 30 s。
-2. 冻结 `yaw_integ`；电流 PI **继续跟** 重力项，不清零。
-3. LQR **继续算** 满 `u_sum` 和各项 `terms[]`，供退出判据和遥测。不算就不知道该不该醒。
-4. 进入时 `pos_ref ← x`：在站住的位置安家，不把武装原点继续当目标。
-5. 遥测打标志 `hold=1`；`eff` 不再要求 0，应是小而稳的重力补偿。
+1. 进入时 `pos_ref ← x` 且 `θ_latch ← θ`。出力 `(kθ(θ−θ_latch)+kω·ω)/2`，不追 trim。
+2. `|τ|<τ_eps` 不补死区（防易转的那一轮被顶走）；超过再补。
+3. 冻结 `yaw_integ`；电流 PI 继续跟重力项。
+4. LQR 仍算满，退出回 TRACK。
+5. 遥测 `hold=1`；刚进入 `eff` 可以是 0（坐在摩擦锥里），漂了再出小力矩。
 
 **不做：**
 

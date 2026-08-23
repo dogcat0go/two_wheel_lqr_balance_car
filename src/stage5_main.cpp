@@ -25,8 +25,9 @@
 //        z=0：只留 u_sync；单轮卡住停积 ψ
 //
 //   [HOLD] 车辆级 in-position（HoldPolicy）：与门+确认进，或门当拍出
-//        LQR 仍每拍算满（唤醒判据）；航向 I 冻结；刚进入 pos_ref←x
-//        执行只出 pitch+rate（重力补偿），不叠加 pos/vel/偏航，不拔电机
+//        进门不看 trim 倾角（粘着姿态在 0.5°，trim 在 2.6°，对不上）
+//        刚进入 latch pitch 且 pos_ref←x；执行 kθ(θ-θ_latch)+kω·ω
+//        |τ|<τ_eps 不补死区（防单轮被顶走）；满 LQR 仍算，用作 TRACK 唤醒
 //
 //   [执行]
 //        TRACK：左 τ = u_sum/2 - u_yaw ；右 τ = u_sum/2 + u_yaw
@@ -91,6 +92,7 @@ static void control_task(void* param)
     uint32_t last_calib_seq = 0;
     bool     armed = false;
     float    yaw = 0.0f;       // 轮式 ψ
+    float    hold_pitch = 0.0f; // HOLD 锁存的倾角；进门后围着它顶，不追 trim
     int      zero_quiet_n[2] = {0, 0}; // 零点跟踪门：PWM=0 且轮停稳的连续拍数
 
     for (;;) {
@@ -162,6 +164,7 @@ static void control_task(void* param)
             actuators[cfg::kLeft].resetCurrentLoop();
             actuators[cfg::kRight].resetCurrentLoop();
             hold.reset();
+            hold_pitch = x.pitch;
             twist.reset(x.pos);
             yaw_mix.reset(yaw);
             if (got_reset) {
@@ -201,6 +204,7 @@ static void control_task(void* param)
         if (!balancing) {
             balance.reset();
             hold.reset();
+            hold_pitch = x.pitch;
         }
 
         const TwistRef::Output tr = twist.update({
@@ -239,18 +243,24 @@ static void control_task(void* param)
             balance_u = balance.update(x, cfg::kCtrlDt) + tau_ff;
         }
 
+        // 进门不拿 pitch−trim：粘着姿态离 trim 约 2°，|eθ|<0.4° 与 |τ|<9mN·m 永远对不上。
+        // HOLD 里围着 latch 的倾角；TRACK/CONFIRM 只看 v/ω/指令。
+        const float e_hold = hold.holding() ? (x.pitch - hold_pitch) : 0.0f;
+        const float u_grav = cmd.lqr_gains[0] * e_hold
+                           + cmd.lqr_gains[1] * x.pitch_rate;
         hold.update({
-            .e_theta = x.pitch - ref.pitch,
+            .e_theta = e_hold,
             .omega = x.pitch_rate,
             .vel = x.vel,
             .e_pos = x.pos - tr.pos_ref,
-            .tau_half = 0.5f * fabsf(balance_u),
+            .tau_half = 0.5f * fabsf(u_grav),
             .v_cmd = v_cmd,
             .w_cmd = w_cmd,
             .allow = balancing && !on_slope,
         });
         if (hold.justEntered()) {
             twist.reset(x.pos);
+            hold_pitch = x.pitch;
         }
 
         const YawMixer::Output ym = yaw_mix.update({
@@ -283,10 +293,10 @@ static void control_task(void* param)
         float v_abs = 0.0f;
         const bool holding = hold.holding();
         if (balancing) {
-            // HOLD：只留倾角两项顶重力。pos/vel 已 rebase 仍会带噪声，偏航零速差是伪信号。
+            // HOLD：围着 latch 倾角只出 pitch+rate。不追 trim，也不叠 pos/vel/偏航。
             const float u_cm = holding
-                ? (balance.terms()[BalanceController::kTermPitch]
-                   + balance.terms()[BalanceController::kTermPitchRate])
+                ? (cmd.lqr_gains[0] * (x.pitch - hold_pitch)
+                   + cmd.lqr_gains[1] * x.pitch_rate)
                 : balance_u;
             for (int i = 0; i < 2; i++) {
                 float tau_nm = 0.5f * u_cm;
@@ -304,15 +314,16 @@ static void control_task(void* param)
             float i_ref = 0.0f;
             const float tau_nm = tau_cmd[i];
             if (balancing) {
-                const float ff_dir = hard_fault ? 0.0f
+                const bool hold_kick = holding && fabsf(tau_nm) < cfg::kTorqueEps;
+                const float ff_dir = (hard_fault || hold_kick) ? 0.0f
                     : ((holding || v_abs < cfg::kHoldVelIn)
                            ? tau_nm
                            : ((i == cfg::kLeft) ? v_l : v_r));
                 i_ref = hard_fault ? 0.0f : tau_nm / cfg::kTorquePerAmp[i];
-                // 死区前馈常开（含 HOLD）：数 mN·m 的重力项不补就穿不过电气死区。
+                // HOLD 小 τ 不补死区：R 正 11mN·m 一补就被单边顶走。TRACK 粘着段仍常开。
                 actuators[i].applyTorque(hard_fault ? 0.0f : tau_nm,
                                          current_sensors[i].current(),
-                                         cfg::kCtrlDt, !hard_fault,
+                                         cfg::kCtrlDt, !hard_fault && !hold_kick,
                                          ff_dir);
                 snap.effort[i] = actuators[i].lastDuty();
             } else if (cmd.mode == 0 && !cmd_lost && cmd.use_current[i]) {
