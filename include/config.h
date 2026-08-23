@@ -216,7 +216,7 @@ constexpr float kHoldPosIn       = 0.0f;  // m；0=本步关闭
 constexpr float kHoldPosOut      = 0.06f;
 constexpr float kHoldVCmdEps     = 0.01f; // m/s
 constexpr int   kHoldEnterTicks  = 20;    // 100 ms @ 200 Hz
-// TRACK 死区前馈 Karnopp：门槛复用 vel_in/out 与 kTorqueEps；粘着+小 τ 不补
+// TRACK 死区前馈常开（粘着段也补）；关补偿只在 HOLD。kTorqueEps 仍给 HoldPolicy 力矩门。
 // E3 v_dc trim 伺服：bias += −k·v_dc·dt，每净爬 1m 拧回 k rad。
 // 收敛时标 τ = k_vel/(k_pitch·k) ≈ 0.42/(1.85·k)：k=0.015 → τ≈15s。串口 u 在线改，u 0 关。
 constexpr float kTrimServoK        = 0.015f; // rad/m

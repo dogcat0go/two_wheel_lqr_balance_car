@@ -91,7 +91,6 @@ static void control_task(void* param)
     uint32_t last_calib_seq = 0;
     bool     armed = false;
     float    yaw = 0.0f;       // 轮式 ψ
-    bool     db_ff = true;     // Karnopp：TRACK 死区前馈使能（回差）
     int      zero_quiet_n[2] = {0, 0}; // 零点跟踪门：PWM=0 且轮停稳的连续拍数
 
     for (;;) {
@@ -202,7 +201,6 @@ static void control_task(void* param)
         if (!balancing) {
             balance.reset();
             hold.reset();
-            db_ff = true;
         }
 
         const TwistRef::Output tr = twist.update({
@@ -291,15 +289,6 @@ static void control_task(void* param)
             }
             if (!hold.holding()) {
                 v_abs = 0.5f * (fabsf(v_l) + fabsf(v_r));
-                const float tau_abs = fmaxf(fabsf(tau_cmd[0]), fabsf(tau_cmd[1]));
-                if (db_ff) {
-                    if (v_abs < cfg::kHoldVelIn && tau_abs < cfg::kTorqueEps) {
-                        db_ff = false;
-                    }
-                } else if (v_abs > cfg::kHoldVelOut ||
-                           tau_abs > cfg::kTorqueEps * 1.5f) {
-                    db_ff = true;
-                }
             }
         }
 
@@ -317,9 +306,11 @@ static void control_task(void* param)
                                ? ((i == cfg::kLeft) ? v_l : v_r)
                                : tau_nm);
                     i_ref = hard_fault ? 0.0f : tau_nm / cfg::kTorquePerAmp[i];
+                    // TRACK 常开死区前馈：粘着段也补，避免 PI 从 0 爬过门槛形成张弛环。
+                    // 真停稳只走 HOLD（上面分支 compensate=false）。
                     actuators[i].applyTorque(hard_fault ? 0.0f : tau_nm,
                                              current_sensors[i].current(),
-                                             cfg::kCtrlDt, db_ff && !hard_fault,
+                                             cfg::kCtrlDt, !hard_fault,
                                              ff_dir);
                 }
                 snap.effort[i] = actuators[i].lastDuty();
