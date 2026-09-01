@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ROS2 运控向讲义：分层、实时卫生、DDS 与 ros2_control</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --paper: #fffcf7;
+    --ink: #1a1f24;
+    --muted: #5a6570;
+    --line: #d8d2c6;
+    --accent: #0b5f6b;
+    --accent-soft: #e6f2f3;
+    --warn: #8a3b12;
+    --warn-bg: #f8eee6;
+    --ok: #1f6b3a;
+    --ok-bg: #e8f4ec;
+    --code-bg: #eef1f3;
+    --shadow: 0 1px 0 rgba(26,31,36,.04), 0 12px 40px rgba(26,31,36,.06);
+    --radius: 10px;
+    --max: 52rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 12% -8%, #e8f4f5 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #f3efe6 0%, transparent 50%),
+      var(--bg);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong",
+      "Libertinus Serif", "Iowan Old Style", Georgia, serif;
+    line-height: 1.75;
+    font-size: 17px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: 250px minmax(0, var(--max));
+    gap: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  nav.toc {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding: 1rem;
+    background: rgba(255,252,247,.85);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(8px);
+    font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  nav.toc h2 {
+    margin: 0 0 .75rem;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--ink);
+    text-decoration: none;
+    padding: .22rem 0;
+    border-left: 2px solid transparent;
+    padding-left: .55rem;
+  }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .l2 { padding-left: 1.1rem; color: var(--muted); font-size: 12px; }
+  main {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 2.25rem 2rem 3rem;
+  }
+  header.doc-head {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header.doc-head .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .5rem;
+  }
+  h1 {
+    font-size: clamp(1.55rem, 3vw, 2.05rem);
+    line-height: 1.25;
+    margin: 0 0 .75rem;
+    font-weight: 700;
+  }
+  .lead { color: var(--muted); margin: 0; font-size: 1.02rem; }
+  h2 {
+    margin: 2.75rem 0 1rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--line);
+    font-size: 1.45rem;
+    color: var(--accent);
+  }
+  h2:first-of-type { border-top: none; }
+  h3 { margin: 1.75rem 0 .65rem; font-size: 1.15rem; }
+  h4 { margin: 1.25rem 0 .4rem; font-size: 1.02rem; }
+  p { margin: .7rem 0; }
+  ul, ol { padding-left: 1.35rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .9em;
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 4px;
+  }
+  .code-block {
+    position: relative;
+    margin: 1rem 0;
+  }
+  .code-block .copy-button {
+    position: absolute;
+    top: .55rem;
+    right: .55rem;
+    z-index: 1;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    padding: .22rem .55rem;
+    border: 1px solid #3d4a52;
+    border-radius: 4px;
+    background: #2a343a;
+    color: #d7e2e7;
+    cursor: pointer;
+  }
+  .code-block .copy-button:hover { background: #354248; }
+  pre {
+    background: #1e262b;
+    color: #e8eef1;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .95rem;
+    margin: 1rem 0 1.25rem;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: .55rem .65rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: .85rem 1rem;
+    margin: 1.1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn {
+    border-left-color: var(--warn);
+    background: var(--warn-bg);
+  }
+  .callout.ok {
+    border-left-color: var(--ok);
+    background: var(--ok-bg);
+  }
+  .callout .t {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 650;
+    font-size: .92rem;
+    margin: 0 0 .35rem;
+  }
+  .eq-box {
+    background: #f3f7f8;
+    border: 1px solid #c9dde0;
+    border-radius: 8px;
+    padding: .2rem 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  .fig {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: #fbfaf7;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: .92rem;
+  }
+  .fig .cap { color: var(--muted); margin-top: .65rem; font-size: .85rem; }
+  .ascii {
+    white-space: pre;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    overflow-x: auto;
+    margin: 0;
+  }
+  details.quiz {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .7rem .9rem;
+    margin: .7rem 0;
+    background: #fff;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  details.quiz summary {
+    cursor: pointer;
+    font-weight: 650;
+    color: var(--accent);
+  }
+  details.quiz .ans { margin-top: .55rem; color: var(--muted); }
+  footer.note {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .9rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    main { padding: 1.5rem 1.1rem 2.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <h2>目录</h2>
+  <a href="#goal">0. 目标与边界</a>
+  <a href="#where">1. ROS2 站在哪一层</a>
+  <a href="#graph">2. 图模型压缩复习</a>
+  <a href="#qos">3. QoS：五要素与选型</a>
+  <a href="#dds">4. DDS：RMW、发现、零拷贝</a>
+  <a href="#tf">5. TF2 与时间</a>
+  <a href="#exec">6. Executor 与死锁</a>
+  <a href="#life">7. 生命周期</a>
+  <a href="#budget">8. 不是硬实时：相位账</a>
+  <a href="#rclcpp">9. rclcpp 实时卫生</a>
+  <a href="#r2c">10. ros2_control 对照固件</a>
+  <a href="#mode">11. 模式切换三件事</a>
+  <a href="#attach">12. 视觉 / Nav / RL 怎么挂</a>
+  <a href="#quiz">13. 闭卷自测</a>
+  <a href="#talk">14. 面试话术</a>
+  <a href="#hands">15. 动手清单</a>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="eyebrow">运控岗补课 · Humble · 配合 VMC / LQR 篇</p>
+  <h1>ROS2 运控向：分层、实时卫生、DDS 与 ros2_control</h1>
+  <p class="lead">
+    岗位要的不是「会的 ROS2 特性数量」，而是：平衡回路为什么不进 DDS、QoS 怎么按数据选、rclcpp 回调里为什么不能 <code>new</code>、以及 ros2_control 三层和你 MCU 固件怎么一一对应。本讲针对双轮足陪伴机器人（Orin + 实时板），不是通用入门课。
+  </p>
+</header>
+
+<section id="goal">
+<h2>0. 这份讲义要你掌握到哪、停在哪</h2>
+
+<p>你已经有：话题 / 服务 / 参数 / Launch、Nav2 部署、slam_toolbox、micro-ROS 联调。短板不在广度，在 <strong>C++ 侧实时纪律</strong> 和 <strong>能对照 ros2_control 讲自己的分层</strong>。</p>
+
+<table>
+  <thead>
+    <tr><th>层级</th><th>内容</th><th>验收</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>能手推 / 默画</td>
+      <td>整机分层：视觉/RL/Nav2 只到指令；200 Hz 平衡在 MCU</td>
+      <td>纸上画出 Orin ↔ 板间 ↔ 关节，标出谁可以丢包</td>
+    </tr>
+    <tr>
+      <td>能手推</td>
+      <td>延迟转相位：\(\varphi=\omega\Delta t\)；用你车上 \(p\approx 15\,\mathrm{rad/s}\) 算 WiFi 抖动吃掉多少裕度</td>
+      <td>第 8 节三道数字能独立复算</td>
+    </tr>
+    <tr>
+      <td>能讲清</td>
+      <td>QoS 五要素 +「订阅不能严于发布」+ 运控/地图/视觉各怎么选</td>
+      <td>给一种数据，能选出 reliability / durability / history</td>
+    </tr>
+    <tr>
+      <td>能讲清</td>
+      <td>Executor、互斥回调组、回调里同步 service 死锁</td>
+      <td>能口述一个死锁场景和改法</td>
+    </tr>
+    <tr>
+      <td>能讲清</td>
+      <td>ros2_control 三层、claim、原子切换；对照 <code>WheelActuator</code> / <code>control_task</code> / LQR</td>
+      <td>第 10 节对照表不看讲义能背</td>
+    </tr>
+    <tr>
+      <td>能讲清</td>
+      <td>产品「模式切换」是 RL 退化回 LQR，不是 PID↔LQR 热切，也不是只会 <code>switch_controllers</code></td>
+      <td>第 11 节三列分得清</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <p class="t">明确不学（被问到转到估计 / 安全层）</p>
+  <p style="margin:0">AMCL 粒子内部、Nav2 行为树自定义节点、costmap 插件开发、自己写一整套 ros2_control controller、Action 接口背诵、rviz 熟练度。视觉检测网络本身也不是运控岗的作业。</p>
+</div>
+</section>
+
+<section id="where">
+<h2>1. 先钉死：ROS2 站在哪一层</h2>
+
+<p>双轮足户外陪伴机器人的典型拆分：GPU 板跑感知和策略，实时板跑估计与关节力矩。ROS2 / DDS 在 GPU 板的<strong>进程间</strong>；板间是 CAN / 串口帧，不是 topic。</p>
+
+<div class="fig">
+<pre class="ascii">Jetson Orin（Linux ARM）
+  相机 / 检测 / 跟随          ─ 30 Hz，可丢
+  RL 推理（ONNX/TensorRT）    ─ 50 Hz 量级，可超时
+  Nav2 / SLAM                 ─ 输出 /cmd_vel，可停
+  运动编排节点（rclcpp）      ─ 读状态、仲裁 writer、下发指令
+           │  二进制帧  seq + t + CRC + timeout
+           ▼
+实时板（FreeRTOS / 你现在的 ESP32）
+  200 Hz read → 估计 → LQR/安全 → write
+  硬故障自己锁存；软故障只清 v*,ω*
+           │  CAN 力矩
+           ▼
+FOC 驱动器 / 轮毂 + 髋膝</pre>
+  <p class="cap">图 1 · ROS2 停在编排层。回路内一旦出现 WiFi/DDS 不确定延迟，倒立摆的相位账会立刻穿仓。</p>
+</div>
+
+<p>你已经用真机做过这个决策：不稳定极点约 \(15\,\mathrm{rad/s}\)，平衡环下沉 MCU，ROS2 只做指令与遥测；指令超时只清速度、保持本地站立。本讲后面所有 API 都服务于这句话，而不是把 200 Hz 搬进节点定时器。</p>
+
+<div class="callout">
+  <p class="t">和仿真车仓库的关系</p>
+  <p style="margin:0">Gazebo 里 <code>balance_controller_node</code>（Python，200 Hz 墙钟）是<strong>仿真里的 MCU 扮演者</strong>。真机上同等代码在 <code>control_task</code>。面试不要说「我用 ROS2 做了 200 Hz 控制」——要说「仿真为了方便把扮演 MCU 的环写在节点里；实车证明这条环不能走 DDS」。</p>
+</div>
+</section>
+
+<section id="graph">
+<h2>2. 图模型压缩复习（只记运控用得到的）</h2>
+
+<table>
+  <thead><tr><th>原语</th><th>运控里干什么</th><th>别用它干什么</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Topic</td>
+      <td>状态流、cmd_vel、关节命令、心跳</td>
+      <td>不要用 topic 当 RPC；不要假设每条都到</td>
+    </tr>
+    <tr>
+      <td>Service</td>
+      <td>切模式、clearFault、标定触发（低频）</td>
+      <td>不要在 200 Hz 回调里同步 <code>call()</code></td>
+    </tr>
+    <tr>
+      <td>Action</td>
+      <td>Nav2 导航目标；可取消、有反馈</td>
+      <td>不要用 Action 下发力矩</td>
+    </tr>
+    <tr>
+      <td>Parameter</td>
+      <td>K、限幅、超时阈值；可动态改</td>
+      <td>改参不要在实时路径里锁住参数服务</td>
+    </tr>
+    <tr>
+      <td>Launch / Composition</td>
+      <td>确定性拉起；多节点进同一进程减拷贝</td>
+      <td>Launch 不是实时调度器</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>和 ROS1 的关键差别（面试 20 秒）：没有 roscore。发现靠 DDS；节点可以后上线；QoS 成为一等公民；rclcpp 与 rclpy 共用同一套中间件。产品上通常<strong>锁死一个 RMW</strong>（Fast DDS 或 Cyclone），而不是现场混用。</p>
+</section>
+
+<section id="qos">
+<h2>3. QoS：五要素、兼容性、场景表（要能讲）</h2>
+
+<p>五要素够用（Humble 面试按这个说）：</p>
+
+<ol>
+  <li><strong>Reliability</strong>：<code>BEST_EFFORT</code>（可丢） / <code>RELIABLE</code>（重传直到成功或超时）</li>
+  <li><strong>Durability</strong>：<code>VOLATILE</code>（后订阅看不到历史） / <code>TRANSIENT_LOCAL</code>（发布方缓存，后上线也能拿到最后若干条）</li>
+  <li><strong>History</strong>：<code>KEEP_LAST(n)</code> / <code>KEEP_ALL</code></li>
+  <li><strong>Deadline</strong>：期望的最大消息间隔（可配合事件回调做超时）</li>
+  <li><strong>Liveliness</strong>：对端还活着吗（LEASE 到期 = 心跳丢了）</li>
+</ol>
+
+<h3>3.1 兼容性：订阅不能严于发布</h3>
+
+<p>DDS 的 offered/requested：发布方提供一组 QoS，订阅方请求一组。请求更严则<strong>匹配失败、安静地收不到数据</strong>——这是联调里最阴的一类 bug。</p>
+
+<table>
+  <thead>
+    <tr><th>项</th><th>能连</th><th>不能连</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Reliability</td>
+      <td>BE 订 REL 发；REL 订 REL 发；BE 订 BE 发</td>
+      <td>REL 订 BE 发</td>
+    </tr>
+    <tr>
+      <td>Durability</td>
+      <td>VOL 订 TL 发；同档互订</td>
+      <td>TL 订 VOL 发（后上线指望历史，发布方却没存）</td>
+    </tr>
+    <tr>
+      <td>History 深度</td>
+      <td>订方 depth ≤ 发方（KEEP_LAST 时）通常能匹配</td>
+      <td>订方要的历史比发方缓存更多</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <p class="t">默认值会坑运控</p>
+  <p style="margin:0">rclcpp 话题默认往往是 RELIABLE + VOLATILE + KEEP_LAST(10)。高频 IMU / 关节状态用可靠重传，会在 WiFi 差时把延迟堆积进队列。传感器流应显式 <code>BEST_EFFORT</code> + <code>KEEP_LAST(1)</code>：只要最新一帧。</p>
+</div>
+
+<h3>3.2 场景选型（背这张表）</h3>
+
+<table>
+  <thead><tr><th>数据</th><th>Reliability</th><th>Durability</th><th>History</th><th>理由</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>IMU / 关节状态 / 遥测</td>
+      <td>BEST_EFFORT</td>
+      <td>VOLATILE</td>
+      <td>KEEP_LAST(1)</td>
+      <td>过期帧有害；丢了等下一拍</td>
+    </tr>
+    <tr>
+      <td>/cmd_vel、策略 action</td>
+      <td>BEST_EFFORT 或 RELIABLE 短队列</td>
+      <td>VOLATILE</td>
+      <td>KEEP_LAST(1)</td>
+      <td>要最新指令；用 stamp + 超时兜底，不靠重传</td>
+    </tr>
+    <tr>
+      <td>地图、全局路径</td>
+      <td>RELIABLE</td>
+      <td>TRANSIENT_LOCAL</td>
+      <td>KEEP_LAST(1)</td>
+      <td>后启动的规划器必须拿到图</td>
+    </tr>
+    <tr>
+      <td>TF（动态）</td>
+      <td>BEST_EFFORT</td>
+      <td>VOLATILE</td>
+      <td>KEEP_LAST 适当</td>
+      <td>tf2 自带缓存；静态 TF 用 static broadcaster</td>
+    </tr>
+    <tr>
+      <td>故障锁存、模式（若走话题）</td>
+      <td>RELIABLE</td>
+      <td>TRANSIENT_LOCAL</td>
+      <td>KEEP_LAST(1)</td>
+      <td>后上线调试器要看到当前模式；仍要 MCU 终裁</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>超时不要只靠 QoS Deadline。你固件里用 <code>cmd.stamp_ms</code> 判 <code>kCmdTimeout</code> 更硬：<strong>应用层超时</strong>在 MCU，中间件超时只是辅助。</p>
+</section>
+
+<section id="dds">
+<h2>4. DDS：RMW、发现、户外、零拷贝</h2>
+
+<p>ROS2 的中间件是可替换的 RMW。Humble 常见：<code>rmw_fastrtps_cpp</code>（Fast DDS，默认）、<code>rmw_cyclonedds_cpp</code>。环境变量 <code>RMW_IMPLEMENTATION</code> 切换。产品上选定一个、全员一致；混用会在发现和 QoS 边角上出鬼。</p>
+
+<h3>4.1 发现（Discovery）</h3>
+
+<p>没有 master。默认参与者用组播互找。实验室局域网没事；户外陪伴机器人用 WiFi 热点 / 拥挤 2.4 GHz 时，发现流量和假节点会把链路打满。</p>
+
+<ul>
+  <li><strong>默认 SPDP 组播</strong>：节点上下线都在喊，机器一多就吵。</li>
+  <li><strong>Discovery Server</strong>（Fast DDS）：指定一台当发现服务器，其它只连它。适合「Orin 为中心、偶尔一台调试笔电」。</li>
+  <li><strong>静态发现 / 白名单</strong>：量产镜像里写死对端 GUID，现场不再自动爬网。</li>
+</ul>
+
+<p>面试一句话：控制链路不走「任意设备自动发现的 DDS」；板间本来就不是 DDS。Orin 内部进程用 DDS 时，把发现范围锁在本机或本机+调试口。</p>
+
+<h3>4.2 进程内零拷贝</h3>
+
+<p>同一进程里多个节点（component composition + <code>use_intra_process_comms:=true</code>）可以借指针传递，避免序列化。适合 Orin 上「相机驱动 → 跟踪 → 编排」同进程。跨板、跨机器仍要拷贝和序列化，别指望零拷贝救 WiFi。</p>
+
+<div class="callout">
+  <p class="t">和你内核网络经历的接法</p>
+  <p style="margin:0">发现、组播、QoS 重传都是网络问题。你做过协议栈和软总线，可以说：DDS 把可靠性和发现做成了中间件策略，运控要做的是<strong>别让这些策略进入力矩闭环</strong>，而不是再实现一遍 DDS。</p>
+</div>
+</section>
+
+<section id="tf">
+<h2>5. TF2 与时间（要能默画）</h2>
+
+<h3>5.1 为什么拆 <code>map → odom → base_link</code></h3>
+
+<div class="fig">
+<pre class="ascii">map ——(定位，可跳变，长期无漂)——► odom ——(轮式积分，连续，会漂)——► base_link
+       定位节点发                         运控 / diff_drive 发</pre>
+  <p class="cap">图 2 · 两段互斥需求：控制要平滑，地图要无漂移。拆开才能两者都要。</p>
+</div>
+
+<ul>
+  <li><code>odom → base_link</code>：由运控或 <code>diff_drive_controller</code> 发。积分轮速 / IMU。控制、局部规划只信这一段的连续性。</li>
+  <li><code>map → odom</code>：由 SLAM / 定位发。它改的是「里程计坐标系在地图里哪」，<strong>不直接改</strong> <code>base_link</code>，避免控制环看到姿态跳变。</li>
+  <li>静态外参（<code>base_link → imu_link / camera</code>）：<code>static_transform_broadcaster</code> 或 URDF。</li>
+</ul>
+
+<p>你在差速车上已经配过这棵树。轮足多一个「腿长变化」：髋相对轮心的高度会变，要用关节状态或单独 TF 更新，不能把 \(h\) 写死在 URDF 里当常值（那是滑轨/第一版仿真可以偷懒的地方）。</p>
+
+<h3>5.2 时间</h3>
+
+<ul>
+  <li><code>use_sim_time:=true</code>：节点跟 <code>/clock</code>。Gazebo 卡了，定时器一起变慢。你仿真车用 <code>use_sim_time:=false</code> 是为了墙钟 200 Hz；真机 MCU 更是自己的晶振。</li>
+  <li>消息 stamp 用「数据产生时刻」不是「发布时刻」。视觉 30 Hz、控制 200 Hz：编排层取<strong>最新一帧</strong>并检查年龄，过期当软故障。</li>
+  <li>互补滤波你用名义周期 \(dt\) 而不是时钟差——和 ros2_control 把 <code>period</code> 传入 <code>update()</code> 是同一纪律：估计器不要吃抖动的时间戳。</li>
+</ul>
+</section>
+
+<section id="exec">
+<h2>6. Executor 与 CallbackGroup（要能讲死锁）</h2>
+
+<p>rclcpp 把回调丢给 Executor 调度。默认 <strong>SingleThreadedExecutor</strong>：同一时刻只跑一个回调。MultiThreadedExecutor 才能并行，但必须给回调分组。</p>
+
+<table>
+  <thead><tr><th></th><th>含义</th><th>运控含义</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>MutuallyExclusive</td>
+      <td>组内回调不同时跑</td>
+      <td>保护无锁假设下的共享状态</td>
+    </tr>
+    <tr>
+      <td>Reentrant</td>
+      <td>组内可重入</td>
+      <td>只有回调可重入时才用</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>6.1 死锁标准场景（要能口述）</h3>
+
+<div class="fig">
+<pre class="ascii">SingleThreadedExecutor
+  定时器回调 on_timer()
+      └─ client-&gt;call(clear_fault)   // 同步等响应
+           └─ 需要同一 executor 去跑 service 响应回调
+                └─ 执行器正被 on_timer 占着
+                     →  永久等待</pre>
+  <p class="cap">图 3 · 回调内同步 service = 自己等自己。</p>
+</div>
+
+<p>改法（记两条就够）：</p>
+
+<ol>
+  <li>异步 <code>async_send_request</code>，不要在实时回调里阻塞；</li>
+  <li>或者把 service 回调放到另一个回调组 + MultiThreadedExecutor。</li>
+</ol>
+
+<p>你在 ESP32 上用双核 + 共享内存快照，就是在硬件上做了「通信回调不准进控制核」。rclcpp 里对应：控制定时器一个组，服务/订阅另一个组，跨组只拷 POD。</p>
+</section>
+
+<section id="life">
+<h2>7. 生命周期：确定性启动，不是装饰</h2>
+
+<p>无生命周期节点：<code>main</code> 里构造完就 publish，订阅方可能还没起来，硬件可能还没 claim。Lifecycle 把节点变成状态机：</p>
+
+<p><code>Unconfigured → Inactive → Active</code>，外加 <code>Finalized</code>。Nav2 的 <code>lifecycle_manager</code> 按 yaml 顺序切状态，就是为了「地图先好、定位再好、规划最后」。ros2_control 的 controller <code>inactive / active</code> 也是生命周期：<strong>active 才允许 claim 命令接口</strong>。</p>
+
+<p>运控编排节点值得做成 lifecycle：<code>configure</code> 打开 CAN/串口并核对 Schema 版本；<code>activate</code> 才允许 <code>writeCommand</code>；<code>deactivate</code> 先发安全指令再松接口。</p>
+</section>
+
+<section id="budget">
+<h2>8. ROS2 不是硬实时：把相位账算完（要手推）</h2>
+
+<p>硬实时：每拍截止时间必须满足，超时视为故障。Linux + DDS 默认不是。PREEMPT_RT + 隔离核 + 无锁可以「尽量实时」，仍不是 MCU 上 <code>vTaskDelayUntil</code> 那种保证。</p>
+
+<p>相位滞后（弧度）\(\varphi = \omega \Delta t\)，换成度：</p>
+
+<div class="eq-box">
+$$
+\varphi(^\circ) = \omega\,\Delta t \cdot \frac{180}{\pi}
+\approx 57.3\,\omega\,\Delta t.
+$$
+</div>
+
+<p>用你车上不稳定极点 \(\omega \approx 15.2\,\mathrm{rad/s}\)：</p>
+
+<table>
+  <thead><tr><th>\(\Delta t\)</th><th>来源</th><th>\(\varphi\)</th></tr></thead>
+  <tbody>
+    <tr><td>1 ms</td><td>尚可的板间周期抖动</td><td>\(0.87^\circ\)</td></tr>
+    <tr><td>5 ms</td><td>同机 DDS / 一次调度延迟</td><td>\(4.4^\circ\)</td></tr>
+    <tr><td>20 ms</td><td>WiFi + 重传，很常见</td><td>\(17.4^\circ\)</td></tr>
+  </tbody>
+</table>
+
+<p>你已算过：该构型相位裕度上限约 \(11.6^\circ\)，数字实现自己已经吃掉约 \(19.7^\circ\)。再塞 5–20 ms 的 DDS，不是「差一点」，是<strong>账已经为负还继续借</strong>。所以：</p>
+
+<ul>
+  <li>回路（站立、关节电流）在 MCU；</li>
+  <li>ROS2 只发参考（\(v^*,\omega^*,L^*,\) 模式），超时 MCU 自己降级；</li>
+  <li>仿真 Python 200 Hz 节点是教具，不是架构目标。</li>
+</ul>
+
+<div class="callout ok">
+  <p class="t">和名义周期同一纪律</p>
+  <p style="margin:0">AHRS 用 <code>kCtrlDt</code> 而不是 <code>micros()</code> 差；ros2_control 的 <code>update(time, period)</code> 里 <code>period</code> 由 manager 传入。两者都拒绝把时钟抖动喂进离散滤波器。</p>
+</div>
+</section>
+
+<section id="rclcpp">
+<h2>9. rclcpp 实时卫生（真缺口，要能写能讲）</h2>
+
+<p>JD 满篇 Modern C++。你现有控制节点是 Python。补的不是「再学一套 API」，是把 MCU 上已经遵守的纪律搬到 Orin 编排节点：</p>
+
+<table>
+  <thead><tr><th>纪律</th><th>MCU 上你怎么做的</th><th>rclcpp 上对应</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>固定周期</td>
+      <td><code>vTaskDelayUntil</code> 200 Hz</td>
+      <td><code>create_wall_timer</code>；真正闭环仍在板端</td>
+    </tr>
+    <tr>
+      <td>跨核只拷 POD</td>
+      <td><code>ControlSnapshot</code> + portMUX</td>
+      <td><code>realtime_tools::RealtimeBuffer</code> / lock-free 队列</td>
+    </tr>
+    <tr>
+      <td>实时路径无分配</td>
+      <td>定长数组、无 printf</td>
+      <td>回调里禁止 <code>new</code>、日志、字符串拼接、vector 扩容</td>
+    </tr>
+    <tr>
+      <td>命令超时</td>
+      <td><code>kCmdTimeout</code> 清速度</td>
+      <td>看 stamp；过期不写力矩，通知 MCU 保持站立</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>订阅回调（非实时线程）只把最新指令塞进 <code>RealtimeBuffer</code>；定时器 / 板端周期任务取出来用。这就是 <code>diff_drive_controller</code> 里 <code>rt_command_ptr_</code> 的做法。</p>
+
+<div class="code-block">
+<button class="copy-button" type="button">复制</button>
+<pre><code>// 示意：订阅线程写，周期任务读。不要当完整节点抄进工程。
+#include &lt;realtime_tools/realtime_buffer.hpp&gt;
+
+struct Cmd { float v{0}, w{0}; rclcpp::Time stamp; };
+
+realtime_tools::RealtimeBuffer&lt;Cmd&gt; rt_cmd;
+
+void on_cmd(const geometry_msgs::msg::Twist::SharedPtr msg) {
+  Cmd c;
+  c.v = msg-&gt;linear.x;
+  c.w = msg-&gt;angular.z;
+  c.stamp = now();          // 非实时侧可以分配
+  rt_cmd.writeFromNonRT(c);
+}
+
+void on_cycle() {           // 周期侧：无锁读、无 new
+  Cmd c = *rt_cmd.readFromRT();
+  if ((now() - c.stamp).seconds() &gt; 0.2) { c.v = c.w = 0; }
+  send_to_mcu(c);           // 预分配的帧缓冲
+}
+</code></pre>
+</div>
+
+<p>Composition：把编排、遥测、策略适配器 load 进同一 <code>component_container</code>，本机热路径少一次序列化。策略推理（GPU）往往仍是独立进程，用心跳 + stamp 连过来——挂了不拖垮编排器。</p>
+
+<p>绑核、优先级、<code>mlockall</code> 属于 Linux 实时调优，知道「Orin 上编排节点可以隔离到非 GPU 核」即可；平衡环仍然不靠这一层保证。</p>
+</section>
+
+<section id="r2c">
+<h2>10. ros2_control：三层、claim、对照你的固件</h2>
+
+<p>JD 写了 ROS2 / DDS，没点名 ros2_control。它是 Linux 上把「硬件抽象 + 周期调度 + 控制律插件」标准化的那一套。你<strong>不必在项目里用过</strong>，但必须能对照着讲。</p>
+
+<h3>10.1 三层</h3>
+
+<div class="fig">
+<pre class="ascii">controller          控制律插件（PID、差速、LQR…）
+        │  claim 某几个 command interface
+        ▼
+controller_manager  固定周期：read → update → write
+                    生命周期 + 资源占用表
+        │
+        ▼
+hardware_interface  read() 采样 / write() 下发
+                    声明 state / command 接口名</pre>
+  <p class="cap">图 4 · 和 MCU 主循环同构，只是跑在 Linux 上。</p>
+</div>
+
+<table>
+  <thead><tr><th>ros2_control</th><th>你的固件</th><th>仿真 Python 节点</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>hardware_interface::read/write</code></td>
+      <td><code>WheelSensor</code> / <code>WheelActuator</code></td>
+      <td>订 <code>/joint_states</code>、发 <code>/wheel_effort_controller/commands</code></td>
+    </tr>
+    <tr>
+      <td>manager 的 read→update→write</td>
+      <td><code>control_task</code> 200 Hz</td>
+      <td><code>on_timer</code></td>
+    </tr>
+    <tr>
+      <td>controller 插件</td>
+      <td><code>BalanceController</code> + LQR</td>
+      <td><code>LqrBackend</code> / <code>CascadePidBackend</code></td>
+    </tr>
+    <tr>
+      <td>command interface 互斥 claim</td>
+      <td>同一拍只有一套 \(\tau\) writer</td>
+      <td>启动时二选一（尚未热切）</td>
+    </tr>
+    <tr>
+      <td><code>joint_state_broadcaster</code></td>
+      <td>只读状态上报，不占执行器</td>
+      <td>debug 话题</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>10.2 Claim 与切换</h3>
+
+<p>同一个 <code>joint1/effort</code> 不能被两个 active controller 同时 claim。切换：先 deactivate 旧的（释放），再 activate 新的。 <code>switch_controllers --deactivate A --activate B</code> 是原子切换，避免中间一拍无人写力矩。</p>
+
+<p><code>joint_state_broadcaster</code> 只读 state interface，所以不冲突——和「遥测任务不写 PWM」同一逻辑。</p>
+
+<h3>10.3 <code>update()</code> 里的四条（读 diff_drive 时只盯这些）</h3>
+
+<ol>
+  <li><code>period</code> 由 manager 传入，自己不要用墙钟差当 \(dt\)。</li>
+  <li>命令来自 <code>RealtimeBuffer</code>，无锁。</li>
+  <li><code>cmd_vel_timeout</code> 过期则速度清零——对应你的软故障。</li>
+  <li>无 <code>new</code>、无锁、无打印。</li>
+</ol>
+
+<div class="callout">
+  <p class="t">面试标准立场</p>
+  <p style="margin:0">「架构我清楚，项目里没用过官方插件。MCU 上手写了等价结构。平衡回路放 Linux+DDS 过不了相位账；ros2_control 更适合仿真侧或上层关节伺服。产品模式切换是策略 writer 与 LQR writer 的仲裁，不完全等于 switch_controllers。」</p>
+</div>
+</section>
+
+<section id="mode">
+<h2>11. 「模式切换」其实是三件不同的事</h2>
+
+<table>
+  <thead><tr><th></th><th>是什么</th><th>和岗位</th><th>你怎么证明</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>A. 算法插件</td>
+      <td>Balance 模式下 PID / LQR / MPC 换实现</td>
+      <td>框架要能挂多种控制器，通常<strong>启动时选定</strong></td>
+      <td>仿真 backend 接口；不要写成产品热切</td>
+    </tr>
+    <tr>
+      <td>B. ros2_control claim</td>
+      <td>同一 command 接口互斥、原子切换</td>
+      <td>资源管理机制，可类比</td>
+      <td>能讲 + 跑过 demo 即可</td>
+    </tr>
+    <tr>
+      <td>C. 产品运行模式</td>
+      <td>Stand / Balance(LQR) / RLWalk / Fault；RL 心跳丢了 writer 回到 LQR</td>
+      <td><strong>JD 要的模式切换</strong></td>
+      <td>真机：硬故障锁存、软故障不断平衡</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>C 的硬规则你已经在车上实现过一半：</p>
+
+<ul>
+  <li>单 writer：<code>balancing</code> 时只有 LQR 写 \(\tau\)；</li>
+  <li>软故障不改模式：<code>kCmdTimeout</code> 只清 \(v^*,\omega^*\)；</li>
+  <li>硬故障改模式并锁存：摔倒 / IMU 丢失，要 <code>r</code> 才武装。</li>
+</ul>
+
+<p>缺的是把「策略进程」显式当成可超时的 writer（RLWalk）。PID↔LQR 热切只练 B，不能当作 C 写上简历。</p>
+</section>
+
+<section id="attach">
+<h2>12. 视觉、Nav2、RL 怎么挂进来</h2>
+
+<p>全部停在<strong>指令与心跳</strong>，不准直写关节。</p>
+
+<div class="fig">
+<pre class="ascii">slam / Nav2  ──► /cmd_vel ──► 编排器 ──► 帧 ──► MCU（LQR 终裁）
+跟随 / 手势  ──► Twist 或目标点 ─┘
+RL 策略      ──► action + heartbeat ─┘
+相机驱动     ──► 只给感知；过期帧 = 软故障标志</pre>
+  <p class="cap">图 5 · 感知与规划都是命令源。MCU 可以违抗它们。</p>
+</div>
+
+<ul>
+  <li>Nav2 挂了：<code>/cmd_vel</code> 停，MCU 清速度、继续站。你仿真里 <code>cmd_vel_timeout_sec</code> 已经是这个语义。</li>
+  <li>视觉丢帧：软故障，不进 Fault；不要用过期检测框去跟。</li>
+  <li>RL NaN / 超时 / 超幅值：换 writer 回 LQR，斜坡接当前 \(\tau\)。没有训练好的网络也可以先用函数冒充 \(\pi\)，考的是仲裁不是准确率。</li>
+</ul>
+
+<p>Nav2 数据流（🟡 默画即可）：AMCL/slam 出位姿 → 全局规划器出路径 → 局部控制器出 Twist → 运控。代价地图、行为树细节不背；被问转到「Twist 进 MCU 之后我怎么做安全」。</p>
+</section>
+
+<section id="quiz">
+<h2>13. 闭卷自测</h2>
+
+<p>0 / 0.5 / 1 分。建议 🔴 全满再去跑 ros2_control demo。</p>
+
+<details class="quiz">
+  <summary>Q1 · 为什么 200 Hz 平衡不能走 ROS2 topic？请用相位数字。</summary>
+  <div class="ans">\(\varphi=57.3\,\omega\Delta t\)。\(\omega\approx15.2\) 时 20 ms WiFi 约 \(17^\circ\)，超过该构型约 \(11.6^\circ\) 的相位裕度上限，且数字实现已经把账花负。故回路在 MCU，ROS2 只发参考。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q2 · RELIABLE 订阅 + BEST_EFFORT 发布，会怎样？运控传感器该怎么选？</summary>
+  <div class="ans">匹配失败，安静无数据。传感器：BEST_EFFORT + KEEP_LAST(1)。控制指令靠 stamp 超时，不靠重传堆延迟。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q3 · 地图为什么用 TRANSIENT_LOCAL？cmd_vel 为什么不用？</summary>
+  <div class="ans">后启动节点必须拿到图。cmd_vel 只要最新；存历史会把过期速度当新命令。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q4 · 口述一个 rclcpp 死锁，以及两种改法。</summary>
+  <div class="ans">单线程执行器里，定时器同步 <code>service call</code>，响应回调无法被调度。改：异步请求；或 service 换回调组 + 多线程执行器。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q5 · map→odom 和 odom→base_link 各谁发、为什么拆？</summary>
+  <div class="ans">定位发前一段（可跳、无漂）；运控发后一段（连续、会漂）。控制要平滑，地图要全局一致，一段 TF 做不到。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q6 · ros2_control 三层各干什么？joint_state_broadcaster 为何不占接口？</summary>
+  <div class="ans">硬件 read/write + 声明接口；manager 周期与 claim；controller 是控制律。broadcaster 只读 state，不 claim command。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q7 · 同一关节两个 controller 同时 active？正确切换姿势？</summary>
+  <div class="ans">不能，command interface 互斥。先 deactivate 再 activate；用 <code>switch_controllers</code> 做原子切换。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q8 · 产品模式切换、PID↔LQR、switch_controllers 各是哪一层？</summary>
+  <div class="ans">产品：谁写 \(\tau\)（RL vs LQR）+ 故障态。PID/LQR：同一 Balance 模式的插件。switch_controllers：Linux 侧接口占用机制，可类比单 writer，不是 RL 退化本身。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q9 · <code>update()</code> 为什么不能 new / printf？你的固件对应物？</summary>
+  <div class="ans">不确定延迟、锁、缺页。对应 <code>control_task</code> 定长运算；跨核用快照+自旋锁，不用队列阻塞。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q10 · 视觉丢帧该进 Fault 吗？</summary>
+  <div class="ans">不应。软故障：清跟随速度，LQR 继续站。Fault 留给摔倒、IMU、驱动器、急停。</div>
+</details>
+</section>
+
+<section id="talk">
+<h2>14. 面试怎么讲</h2>
+
+<p><strong>90 秒版本：</strong></p>
+
+<p>「ROS2 我用在上层：Nav2、遥测、指令。平衡回路在 MCU，200 Hz，因为这辆倒立摆不稳定极点大约 15 rad/s，20 ms 无线延迟就要十七度相位，裕度本来就只有十度出头。固件结构其实就是 ros2_control 那三层：传感器/执行器抽象、固定周期 read-update-write、LQR 当控制律；命令超时清速度、摔倒锁存。QoS 上传感器 best effort 只留一帧，地图 transient local。我没在量产里跑官方 ros2_control 插件，但 claim 互斥和我单 writer 是同一件事。产品要的模式切换是 RL 心跳丢了把力矩权交回 LQR，不是 PID 和 LQR 互切。」</p>
+
+<p><strong>被问「会不会写 ros2_control 插件」：</strong></p>
+
+<p>「接口我清楚：ControllerInterface 的 update、claim 列表、导出 pluginlib。没交过生产插件。仿真若重做，会把平衡律挂进 manager；真机仍不会把不稳定回路放进 Linux。」</p>
+
+<p><strong>被问 DDS 细节（发现协议字段、IDL）：</strong></p>
+
+<p>「RMW 可切换，量产锁一个；户外收紧发现；进程内才谈零拷贝。中间件报文格式没背过，板间我用自己的 seq+CRC 帧。」</p>
+
+<p><strong>被问 Nav2 很深：</strong></p>
+
+<p>「规划器插件注册做过。粒子滤波内部转到我 KF / 创新序列。运控责任是：Twist 进来之后超时、限幅、能不能顶掉规划器。」</p>
+</section>
+
+<section id="hands">
+<h2>15. 动手清单（按优先级，不要全做）</h2>
+
+<p>讲义过完 🔴，再动手。代码作业保持很小。</p>
+
+<ol>
+  <li><strong>半天 ros2_control demo</strong>（已有实验稿）：实验 1 看 claim；实验 2 看切换；实验 4 只读 <code>diff_drive_controller::update</code>。不写自己的 controller。</li>
+  <li><strong>一个 rclcpp 编排节点骨架</strong>（这才是简历上的 C++ ROS2）：墙钟定时器、Twist 订阅进 RealtimeBuffer、超时清零、lifecycle、向串口/UDP 发定长帧。不要在回调里打日志。这和「策略接管」项目是同一个节点。</li>
+  <li><strong>QoS 对照实验</strong>（20 分钟）：REL 订 BE 发，确认无数据；改 BE 后通。用来把 Q2 变成亲历。</li>
+</ol>
+
+<p>不需要：把仿真 Python 整包重写成 C++；把 Nav2 再调一周；在 ESP32 上跑完整 DDS。</p>
+
+<p>建议节奏：第 1、3、8、10 节当天（分层 + 相位账 + 对照表）；第 3、6、9 节第二天（QoS / 死锁 / 实时卫生）；第 13 节隔天闭卷；动手 1 放周末上午。</p>
+</section>
+
+<footer class="note">
+  与 <a href="./vmc_virtual_model_control.html">VMC 讲义</a>、<a href="./lqr_balance_theory.html">LQR 理论复习</a>、
+  <a href="./lagrange_dynamics_why.html">拉格朗日补课</a> 配套。
+  相位账的数字来自实车 RHP / 不稳定极点分析；本篇只把它翻译成「ROS2 不准进回路」的工程约束。
+</footer>
+</main>
+</div>
+<script>
+(function () {
+  document.querySelectorAll(".code-block").forEach(function (block) {
+    var btn = block.querySelector(".copy-button");
+    var code = block.querySelector("pre code");
+    if (!btn || !code) return;
+    btn.addEventListener("click", function () {
+      var text = code.textContent;
+      var done = function () {
+        btn.textContent = "已复制";
+        setTimeout(function () { btn.textContent = "复制"; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+          fallbackCopy(text, done);
+        });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+  function fallbackCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    done();
+  }
+})();
+</script>
+</body>
+</html>
