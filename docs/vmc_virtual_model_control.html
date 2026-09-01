@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>轮足 VMC 讲义：从二连杆到 τ = JᵀF，接到你的 LQR</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --paper: #fffcf7;
+    --ink: #1a1f24;
+    --muted: #5a6570;
+    --line: #d8d2c6;
+    --accent: #0b5f6b;
+    --accent-soft: #e6f2f3;
+    --warn: #8a3b12;
+    --warn-bg: #f8eee6;
+    --ok: #1f6b3a;
+    --ok-bg: #e8f4ec;
+    --code-bg: #eef1f3;
+    --shadow: 0 1px 0 rgba(26,31,36,.04), 0 12px 40px rgba(26,31,36,.06);
+    --radius: 10px;
+    --max: 52rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 12% -8%, #e8f4f5 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #f3efe6 0%, transparent 50%),
+      var(--bg);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong",
+      "Libertinus Serif", "Iowan Old Style", Georgia, serif;
+    line-height: 1.75;
+    font-size: 17px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: 250px minmax(0, var(--max));
+    gap: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  nav.toc {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding: 1rem;
+    background: rgba(255,252,247,.85);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(8px);
+    font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  nav.toc h2 {
+    margin: 0 0 .75rem;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--ink);
+    text-decoration: none;
+    padding: .22rem 0;
+    border-left: 2px solid transparent;
+    padding-left: .55rem;
+  }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .l2 { padding-left: 1.1rem; color: var(--muted); font-size: 12px; }
+  main {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 2.25rem 2rem 3rem;
+  }
+  header.doc-head {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header.doc-head .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .5rem;
+  }
+  h1 {
+    font-size: clamp(1.55rem, 3vw, 2.05rem);
+    line-height: 1.25;
+    margin: 0 0 .75rem;
+    font-weight: 700;
+  }
+  .lead { color: var(--muted); margin: 0; font-size: 1.02rem; }
+  h2 {
+    margin: 2.75rem 0 1rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--line);
+    font-size: 1.45rem;
+    color: var(--accent);
+  }
+  h2:first-of-type { border-top: none; }
+  h3 { margin: 1.75rem 0 .65rem; font-size: 1.15rem; }
+  h4 { margin: 1.25rem 0 .4rem; font-size: 1.02rem; }
+  p { margin: .7rem 0; }
+  ul, ol { padding-left: 1.35rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .9em;
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 4px;
+  }
+  .code-block {
+    position: relative;
+    margin: 1rem 0;
+  }
+  .code-block .copy-button {
+    position: absolute;
+    top: .55rem;
+    right: .55rem;
+    z-index: 1;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    padding: .22rem .55rem;
+    border: 1px solid #3d4a52;
+    border-radius: 4px;
+    background: #2a343a;
+    color: #d7e2e7;
+    cursor: pointer;
+  }
+  .code-block .copy-button:hover { background: #354248; }
+  pre {
+    background: #1e262b;
+    color: #e8eef1;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .95rem;
+    margin: 1rem 0 1.25rem;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: .55rem .65rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: .85rem 1rem;
+    margin: 1.1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn {
+    border-left-color: var(--warn);
+    background: var(--warn-bg);
+  }
+  .callout.ok {
+    border-left-color: var(--ok);
+    background: var(--ok-bg);
+  }
+  .callout .t {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 650;
+    font-size: .92rem;
+    margin: 0 0 .35rem;
+  }
+  .eq-box {
+    background: #f3f7f8;
+    border: 1px solid #c9dde0;
+    border-radius: 8px;
+    padding: .2rem 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  .fig {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: #fbfaf7;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: .92rem;
+  }
+  .fig .cap { color: var(--muted); margin-top: .65rem; font-size: .85rem; }
+  .fig svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  .ascii {
+    white-space: pre;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    overflow-x: auto;
+    margin: 0;
+  }
+  details.quiz {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .7rem .9rem;
+    margin: .7rem 0;
+    background: #fff;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  details.quiz summary {
+    cursor: pointer;
+    font-weight: 650;
+    color: var(--accent);
+  }
+  details.quiz .ans { margin-top: .55rem; color: var(--muted); }
+  footer.note {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .9rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    main { padding: 1.5rem 1.1rem 2.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <h2>目录</h2>
+  <a href="#goal">0. 目标与边界</a>
+  <a href="#layer">1. VMC 不是再做一次 LQR</a>
+  <a href="#frame">2. 坐标与符号</a>
+  <a href="#fk">3. 正运动学（要手推）</a>
+  <a href="#ik">4. 逆运动学（余弦定理）</a>
+  <a href="#jac">5. 速度雅可比（要手推）</a>
+  <a href="#virtual">6. 虚功：τ = JᵀF</a>
+  <a href="#num">7. 数值例（两道）</a>
+  <a href="#sing">8. 奇异位形</a>
+  <a href="#leg">9. 虚拟腿坐标 (L, φ)</a>
+  <a href="#lqr">10. 接到 LQR 与 K(h)</a>
+  <a href="#why">11. 为什么不用整机动力学</a>
+  <a href="#five">12. 五连杆：看一眼就停</a>
+  <a href="#quiz">13. 闭卷自测</a>
+  <a href="#talk">14. 面试话术</a>
+  <a href="#read">15. 阅读对照</a>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="eyebrow">轮足迁移补课 · 配合拉格朗日篇 / LQR 篇</p>
+  <h1>虚拟模型控制（VMC）：把「虚拟摆」翻译成髋膝力矩</h1>
+  <p class="lead">
+    一句话：LQR 继续输出虚拟倒立摆层面的量；VMC 只用
+    \(\tau = J^{\mathrm{T}} F\)
+    把虚拟腿上的力翻译成关节力矩。本讲义覆盖面试要求的三条手推、两条能讲清，以及明确不学什么。
+  </p>
+</header>
+
+<section id="goal">
+<h2>0. 这份讲义要你掌握到哪、停在哪</h2>
+
+<p>读完并闭卷过第 13 节，应达到：</p>
+
+<table>
+  <thead>
+    <tr><th>层级</th><th>内容</th><th>验收</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>能手推</td>
+      <td>平面二连杆正运动学 → 对 \(\theta_1,\theta_2\) 求偏导得 \(2\times 2\) 雅可比</td>
+      <td>纸上写出 \(p(q)\) 和 \(J(q)\)，不看讲义</td>
+    </tr>
+    <tr>
+      <td>能手推</td>
+      <td>虚功一行：\(\delta W = F^{\mathrm{T}}\delta x = F^{\mathrm{T}} J\,\delta q \equiv \tau^{\mathrm{T}}\delta q\)</td>
+      <td>能解释为什么是 \(J^{\mathrm{T}}\) 不是 \(J^{-1}\)</td>
+    </tr>
+    <tr>
+      <td>能手推</td>
+      <td>给定 \(F\) 和一组 \(\theta\)，算出 \(\tau_{\mathrm{hip}},\tau_{\mathrm{knee}}\)</td>
+      <td>第 7 节两道例题能独立复算</td>
+    </tr>
+    <tr>
+      <td>能讲清</td>
+      <td>膝伸直时 \(J\) 降秩，沿腿方向失去力控制</td>
+      <td>能连到「站立高度不设计在完全伸直」</td>
+    </tr>
+    <tr>
+      <td>能讲清</td>
+      <td>VMC 把平衡和腿形解耦，LQR 模型仍是轮式倒立摆，\(h\) 是慢变参数</td>
+      <td>能说出这就是 \(K(h)\) 增益调度的正当性</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <p class="t">明确不学（被问到用第 14 节边界话术）</p>
+  <p style="margin:0">浮动基动力学、WBC/QP 接触力分配、接触估计、五连杆解析优化、完整腿部 \(M(q)\ddot q+C+G\)。二连杆<strong>动力学</strong>不用推；<strong>运动学</strong>要推。</p>
+</div>
+
+<p>第一版变高度仿真若用 prismatic 滑轨腿，\(h\) 本身就是关节坐标，用不到本章。把滑轨换成髋–膝后再用这里的公式。本章不阻塞 \(K(h)\) 前四步。</p>
+</section>
+
+<section id="layer">
+<h2>1. VMC 不是「质心变了再做一次 LQR」</h2>
+
+<p>两件事容易混。它们在同一拍里各干各的：</p>
+
+<div class="fig">
+<pre class="ascii">LQR 层（控制律，模型随 h 变）
+  输入：θ, ω, s, ṡ（虚拟倒立摆状态）
+  输出：轮力矩 τ_wheel
+        虚拟腿期望：支撑力 F 和/或腿长指令 h*
+        （可选）垂直于腿的力 F_φ
+                 │
+                 ▼  几何翻译，没有新的最优控制
+VMC 层（本讲义）
+  τ_hip, τ_knee = J(θ₁,θ₂)ᵀ · F_足端
+                 │
+                 ▼
+髋、膝电机电流环 / 力矩模式</pre>
+  <p class="cap">图 1 · 分层。LQR 不知道世界上有「膝」；VMC 不知道 Riccati。</p>
+</div>
+
+<ul>
+  <li><strong>\(K(h)\) 增益调度</strong>回答：质心高度变了，倒立摆的 \(A,B\) 变了，同一套 LQR 要用另一组 \(K\)。</li>
+  <li><strong>VMC</strong>回答：LQR 想象的是一根可伸缩的虚拟腿，真实机器人却是髋、膝两个旋转关节。要把虚拟腿上的力变成两个关节力矩。</li>
+</ul>
+
+<div class="callout">
+  <p class="t">记这一句</p>
+  <p style="margin:0">\(K(h)\) 负责「模型随高度变」；VMC 负责「关节如何实现虚拟腿」。合起来才是「LQR 经验迁到轮足」。</p>
+</div>
+
+<p>「虚拟模型」的原意（Pratt 等）：在任务空间里假装装了弹簧、阻尼、力源，再由雅可比把这些虚拟力映射到关节。轮足场景里，任务空间就是虚拟腿的长度和摆角；虚拟力就是「撑住车体 + 按需侧向」。你不需要把弹簧阻尼真做成阻抗控制器——高度环用 PD + 重力前馈即可，映射公式不变。</p>
+</section>
+
+<section id="frame">
+<h2>2. 坐标与符号（先钉死，后面所有数字都用它）</h2>
+
+<p>平面二连杆，髋在原点。世界系：\(x\) 轴朝前（车头），\(y\) 轴朝上。这是教材里平面 2R 机械臂的标准写法；腿自然下垂时 \(\theta_1 \approx -\pi/2\)。</p>
+
+<div class="fig">
+<svg viewBox="0 0 460 280" width="460" height="280" aria-label="平面二连杆几何">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#1a1f24"/>
+    </marker>
+  </defs>
+  <line x1="40" y1="240" x2="420" y2="240" stroke="#c9c3b8" stroke-width="1"/>
+  <line x1="80" y1="30" x2="80" y2="250" stroke="#c9c3b8" stroke-width="1"/>
+  <text x="410" y="255" font-size="13" fill="#5a6570">x</text>
+  <text x="50" y="40" font-size="13" fill="#5a6570">y</text>
+  <!-- hip -->
+  <circle cx="80" cy="70" r="7" fill="#0b5f6b"/>
+  <text x="92" y="58" font-size="13">髋 O</text>
+  <!-- thigh -->
+  <line x1="80" y1="70" x2="200" y2="150" stroke="#0b5f6b" stroke-width="7" stroke-linecap="round"/>
+  <!-- shank -->
+  <line x1="200" y1="150" x2="250" y2="240" stroke="#8a3b12" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="200" cy="150" r="6" fill="#8a3b12"/>
+  <text x="212" y="142" font-size="13">膝</text>
+  <circle cx="250" cy="240" r="8" fill="#1a1f24"/>
+  <text x="262" y="235" font-size="13">足 / 轮心</text>
+  <!-- virtual leg -->
+  <line x1="80" y1="70" x2="250" y2="240" stroke="#0b5f6b" stroke-dasharray="6 4" stroke-width="1.5"/>
+  <text x="155" y="175" font-size="12" fill="#0b5f6b">虚拟腿 L</text>
+  <text x="130" y="100" font-size="12">l₁, θ₁</text>
+  <text x="215" y="200" font-size="12">l₂, θ₂（相对）</text>
+</svg>
+  <p class="cap">图 2 · 髋在原点。虚线是虚拟腿（髋到轮心），实线是真实连杆。</p>
+</div>
+
+<table>
+  <thead><tr><th>符号</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td>\(\theta_1\)</td><td>大腿相对 <strong>\(+x\) 轴</strong> 的转角，逆时针为正（2R 教材约定）</td></tr>
+    <tr><td>\(\theta_2\)</td><td>小腿相对大腿的转角，\(\theta_2=0\) 为完全伸直</td></tr>
+    <tr><td>\(\theta_{12}=\theta_1+\theta_2\)</td><td>小腿相对 \(+x\) 轴的绝对角</td></tr>
+    <tr><td>\(l_1,l_2\)</td><td>大腿、小腿长度</td></tr>
+    <tr><td>\(p=(p_x,p_y)\)</td><td>足端（轮心）相对髋的位置</td></tr>
+    <tr><td>\(q=(\theta_1,\theta_2)\)</td><td>关节坐标</td></tr>
+    <tr><td>\(J(q)\)</td><td>\(\dot p = J(q)\,\dot q\) 的 \(2\times 2\) 矩阵</td></tr>
+    <tr><td>\(F=(F_x,F_y)\)</td><td>连杆通过足端<strong>作用在足端上</strong>的力（笛卡尔）</td></tr>
+    <tr><td>\(\tau=(\tau_1,\tau_2)\)</td><td>髋、膝关节力矩，与 \(\dot\theta\) 同向为正</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <p class="t">力的方向（最容易画反）</p>
+  <p style="margin:0">
+    \(F\) 是<strong>腿对足端</strong>的力。要撑住车体，腿把轮子往地上按，故 \(F_y&lt;0\)（世界 \(y\) 朝上）。地面再给轮子等大反向的支持力。弄反一次，蹲下会变成弹起来。
+  </p>
+</div>
+</section>
+
+<section id="fk">
+<h2>3. 正运动学：\(\theta \mapsto p\)（要手推）</h2>
+
+<p>从髋出发，先走大腿、再走小腿。把每段写成沿该连杆方向的向量：</p>
+
+<div class="eq-box">
+$$
+p =
+\begin{bmatrix} p_x \\ p_y \end{bmatrix}
+=
+\begin{bmatrix} l_1\cos\theta_1 + l_2\cos(\theta_1+\theta_2) \\
+                l_1\sin\theta_1 + l_2\sin(\theta_1+\theta_2) \end{bmatrix}.
+$$
+</div>
+
+<p>手推时在纸上画：\(\theta_1=0\) 时大腿沿 \(+x\)；\(\theta_1=-\pi/2\) 时大腿沿 \(-y\)（下垂）。轮足站立时 \(\theta_1\) 在第三象限附近，\(p_y&lt;0\)。</p>
+
+<p>足端到髋的距离就是虚拟腿长：</p>
+
+<div class="eq-box">
+$$
+L = \lVert p \rVert = \sqrt{p_x^2 + p_y^2}.
+$$
+</div>
+
+<p>虚拟腿相对「竖直向下」的摆角（车头方向为正）：</p>
+
+<div class="eq-box">
+$$
+\varphi = \operatorname{atan2}(p_x,\, -p_y).
+$$
+</div>
+
+<p>\(\varphi=0\) 时轮心正好在髋的正下方。例 A 会用到这个位形。</p>
+</section>
+
+<section id="ik">
+<h2>4. 逆运动学：期望 \(L,\varphi\) → \(\theta\)（要会，十分钟量级）</h2>
+
+<p>蹲起指令通常给「髋到轮心的长度 \(L\)」，不是直接给 \(\theta\)。平面二连杆用余弦定理，没有迭代。</p>
+
+<p>已知足端 \(p\)（由 \(L,\varphi\) 反算：\(p_x=L\sin\varphi,\ p_y=-L\cos\varphi\)）：</p>
+
+<div class="eq-box">
+$$
+\cos\theta_2
+= \frac{\lVert p \rVert^2 - l_1^2 - l_2^2}{2 l_1 l_2}
+= \frac{L^2 - l_1^2 - l_2^2}{2 l_1 l_2}.
+$$
+</div>
+
+<p>\(\theta_2 = \pm \arccos(\cdot)\)。正负对应两种肘形：膝朝前或膝朝后。轮足产品会固定一种（常见是膝朝后或平行四边形五连杆等价于一种），运行中不要跳符号，否则腿会瞬间翻到另一构型。</p>
+
+<p>再求 \(\theta_1\)：</p>
+
+<div class="eq-box">
+$$
+\theta_1
+= \operatorname{atan2}(p_y,p_x)
+- \operatorname{atan2}\bigl(l_2\sin\theta_2,\; l_1 + l_2\cos\theta_2\bigr).
+$$
+</div>
+
+<p>数值：\(l_1=l_2=0.15\,\mathrm{m}\)，要 \(L=0.25\,\mathrm{m},\varphi=0\)（足端在 \((0,-0.25)\)）。</p>
+
+\[
+\cos\theta_2 = \frac{0.0625 - 2\times 0.0225}{0.045} = 0.3889,
+\quad
+\theta_2 = \pm 67.1^\circ.
+\]
+
+<p>取膝朝后 \(\theta_2=-67.1^\circ\)，得 \(\theta_1=-56.4^\circ\)。代回正运动学应收回 \((0,-0.25)\)，用来验符号。</p>
+
+<div class="callout">
+  <p class="t">工作空间</p>
+  <p style="margin:0">
+    \(L\) 只能落在 \(|l_1-l_2|\) 与 \(l_1+l_2\) 之间。等长连杆时最短接近 \(0\)（对折），最长 \(l_1+l_2\)（伸直，奇异）。站立高度要留在中间一段，既不要顶死也不要叠腿。
+  </p>
+</div>
+</section>
+
+<section id="jac">
+<h2>5. 速度雅可比：\(\dot p = J(q)\,\dot q\)（要手推）</h2>
+
+<p>把正运动学对时间求导。记住 \(\frac{\mathrm{d}}{\mathrm{d}t}\cos\theta_1 = -\sin\theta_1\cdot\dot\theta_1\)，以及 \(\theta_{12}\) 对 \(\theta_1\) 和 \(\theta_2\) 都敏感：</p>
+
+<div class="eq-box">
+$$
+J(q)
+=
+\begin{bmatrix}
+-l_1\sin\theta_1 - l_2\sin\theta_{12} &amp; -l_2\sin\theta_{12} \\
+ l_1\cos\theta_1 + l_2\cos\theta_{12} &amp;  l_2\cos\theta_{12}
+\end{bmatrix}.
+$$
+</div>
+
+<p>第一列是「整臂当刚体绕髋转」：\(\partial p/\partial\theta_1 = (-p_y,\, p_x)\)，恰好把位置向量转 \(90^\circ\)。第二列是「只绕膝转」：小腿绕膝，半径 \(l_2\)。</p>
+
+<p>行列式有干净结果，面试可以当验算：</p>
+
+<div class="eq-box">
+$$
+\det J = l_1 l_2 \sin\theta_2.
+$$
+</div>
+
+<p>\(\theta_2=0\) 或 \(\pi\)（完全伸直或完全折叠）时 \(\det J=0\)。这就是第 8 节奇异的代数来源。不必背 \(J\) 每个元素，但要能从 \(p(q)\) 当场求偏导，并用 \(\det J\) 查错。</p>
+</section>
+
+<section id="virtual">
+<h2>6. 虚功原理：为什么是 \(\tau = J^{\mathrm{T}} F\)（要手推这一行）</h2>
+
+<p>你在拉格朗日讲义里已经见过虚位移。这里只用到：理想约束下，同一物理过程用关节坐标或用足端坐标写，<strong>虚功相等</strong>。</p>
+
+<p>给关节一个虚位移 \(\delta q\)，足端跟着走：</p>
+
+\[
+\delta x = J(q)\,\delta q.
+\]
+
+<p>足端力 \(F\) 做的虚功 \(F^{\mathrm{T}}\delta x\)；关节力矩做的虚功 \(\tau^{\mathrm{T}}\delta q\)。二者必须对<strong>任意</strong> \(\delta q\) 相等（否则你可以挑一个方向凭空做功）：</p>
+
+<div class="eq-box">
+$$
+\delta W
+= F^{\mathrm{T}} \delta x
+= F^{\mathrm{T}} J\,\delta q
+= \tau^{\mathrm{T}} \delta q
+\quad \forall\,\delta q
+\ \Longrightarrow\
+\tau = J^{\mathrm{T}} F.
+$$
+</div>
+
+<p>这是静力学对偶：速度映射用 \(J\)，力映射用 \(J^{\mathrm{T}}\)。和电路里变压器原副边「电压比 vs 电流比互为转置」是同一类对偶。</p>
+
+<div class="callout warn">
+  <p class="t">三个常见写反</p>
+  <ol style="margin:0;padding-left:1.2rem">
+    <li>\(\tau = J^{-1} F\)：量纲和维度都不对。\(J^{-1}\) 把<strong>速度</strong>从笛卡尔映回关节；力不是速度。</li>
+    <li>\(\tau = J F\)：缺转置。\(J\) 是 \(2\times 2\) 时仍能算出两个数，但数值是错的。</li>
+    <li>用 \(J^{\mathrm{T}}\) 却把 \(F\) 定义成「地面对轮的力」：差一个负号，整腿力矩反号。</li>
+  </ol>
+</div>
+
+<p>几何直觉：力沿「髋–足」连线时，力臂相对髋为零，所以<strong>纯沿虚拟腿的力不产生髋力矩</strong> \(\tau_1=0\)，膝因为不在这条线上仍要出力。例 A 会验证这一点。髋力矩来自<strong>不穿过髋的力</strong>（重力竖直、腿却斜着时，或故意加的侧向力 \(F_\varphi\)）。</p>
+</section>
+
+<section id="num">
+<h2>7. 数值例：两道必算</h2>
+
+<p>统一取 \(l_1=l_2=0.15\,\mathrm{m}\)，\(F=(0,-8)\,\mathrm{N}\)（竖直向下按轮，约 0.8 kg 单腿分担）。\(\tau = J^{\mathrm{T}} F\) 即</p>
+
+\[
+\tau_1 = J_{11} F_x + J_{21} F_y,
+\quad
+\tau_2 = J_{12} F_x + J_{22} F_y.
+\]
+
+<h3>7.1 例 A · 虚拟腿竖直（\(\varphi=0\)）</h3>
+
+<p>\(\theta_1=-70^\circ,\ \theta_2=-40^\circ\)。正运动学：\(p \approx (0,\ -0.282)\,\mathrm{m}\)，\(L=0.282\,\mathrm{m}\)。</p>
+
+\[
+J \approx
+\begin{bmatrix}
+0.282 &amp; 0.141 \\
+0 &amp; -0.0513
+\end{bmatrix},
+\quad
+\det J = l_1 l_2 \sin(-40^\circ) \approx -0.0145.
+\]
+
+\[
+\tau \approx (0,\ 0.410)\,\mathrm{N\cdot m}.
+\]
+
+<p>髋矩为零：竖直力正好穿过髋。膝矩 \(0.41\,\mathrm{N\cdot m}\)：膝必须「撑开/折住」才能把两个连杆变成一根受压的虚拟腿。</p>
+
+<h3>7.2 例 B · 虚拟腿前倾 \(\varphi=15^\circ\)（更接近走路）</h3>
+
+<p>\(\theta_1=\theta_2=-50^\circ\)。\(p \approx (0.070,\ -0.263)\,\mathrm{m}\)，\(L=0.272\,\mathrm{m}\)，\(\varphi=15^\circ\)。</p>
+
+\[
+J \approx
+\begin{bmatrix}
+0.263 &amp; 0.148 \\
+0.0704 &amp; -0.0260
+\end{bmatrix}.
+\]
+
+<p>重力仍竖直，力线<strong>不</strong>过髋（水平力臂就是 \(p_x\)）：</p>
+
+\[
+\tau_1 \approx -0.563\,\mathrm{N\cdot m},
+\quad
+\tau_2 \approx 0.208\,\mathrm{N\cdot m}.
+\]
+
+<p>验算：髋上的力矩应等于力对原点的矩 \(p_x F_y - p_y F_x = 0.070\times(-8) = -0.563\)。与 \(\tau_1\) 一致。</p>
+
+<div class="callout ok">
+  <p class="t">例 B 才是产品里的常态</p>
+  <p style="margin:0">户外轮足很少把虚拟腿精确竖直。LQR 要的是「世界系向上撑住 mg」，不是「沿连杆轴向」。所以映射时 \(F\) 用世界系 \((0,-mg_{\mathrm{share}})\) 再加高度 PD，不要只沿 \(\hat L\) 推。</p>
+</div>
+
+<h3>7.3 用代码对答案（算完再看）</h3>
+
+<div class="code-block">
+<button class="copy-button" type="button">复制</button>
+<pre><code>import math
+
+l1 = l2 = 0.15
+
+def fk(th1, th2):
+    th12 = th1 + th2
+    return (l1 * math.cos(th1) + l2 * math.cos(th12),
+            l1 * math.sin(th1) + l2 * math.sin(th12))
+
+def jac(th1, th2):
+    th12 = th1 + th2
+    return (
+        (-l1 * math.sin(th1) - l2 * math.sin(th12), -l2 * math.sin(th12)),
+        ( l1 * math.cos(th1) + l2 * math.cos(th12),  l2 * math.cos(th12)),
+    )
+
+def tau_from_F(th1, th2, Fx, Fy):
+    J = jac(th1, th2)
+    t1 = J[0][0] * Fx + J[1][0] * Fy
+    t2 = J[0][1] * Fx + J[1][1] * Fy
+    return t1, t2
+
+print(tau_from_F(math.radians(-70), math.radians(-40), 0, -8))
+print(tau_from_F(math.radians(-50), math.radians(-50), 0, -8))
+</code></pre>
+</div>
+</section>
+
+<section id="sing">
+<h2>8. 奇异位形：膝伸直时你沿腿使不上力</h2>
+
+<p>\(\det J = l_1 l_2 \sin\theta_2 = 0\) 当 \(\theta_2 = 0\) 或 \(\pi\)。</p>
+
+<p>运动学含义：两个连杆共线，足端速度的两个关节贡献也共线，\(J\) 的两列线性相关。力映射上，\(J^{\mathrm{T}}\) 的值域缺了一个方向——<strong>沿连杆轴线的力</strong>无法由有限关节力矩产生（或者说需要无穷大力矩）。垂直于腿的力仍然可以靠髋「抡」出来。</p>
+
+<div class="fig">
+<pre class="ascii">伸直（θ₂ = 0）          正常弯曲            对折（θ₂ = ±π）
+髋——膝——轮               髋                   髋
+   共线，沿腿失控           \                   │
+                            膝——轮              膝
+                                               │
+                                               轮（叠在髋下）</pre>
+  <p class="cap">图 3 · 两端都奇异。站立区放在中间弯曲段。</p>
+</div>
+
+<p>这和你平衡车上「RHP 零点靠太近 → 物理裕度见底」是同一类叙事：<strong>几何先判死刑，调参救不了</strong>。轮足站立高度因此不会设计在完全伸直——伸直看起来「腿最长、质心最高」，但沿腿方向的力可控性为零，稍有扰动就无法用膝力矩把虚拟腿「顶住」。工程上 \(L_{\max}\) 会留出几度膝屈。</p>
+
+<p>数值上要盯 \(\lvert\sin\theta_2\rvert\)。接近 0 时不要对 \(J\) 求逆去算「产生某个 \(\dot p\) 需要多大 \(\dot q\)」；VMC 正向映射 \(\tau=J^{\mathrm{T}}F\) 在奇异处不会除零，但沿奇异方向你加很大的 \(F\) 也换不成有效的内部应力调节，腿会发软或电流饱和。</p>
+</section>
+
+<section id="leg">
+<h2>9. 虚拟腿坐标 \((L,\varphi)\)：和笛卡尔 \(F\) 怎么换</h2>
+
+<p>任务空间用 \((L,\varphi)\) 更贴 LQR：\(L\) 就是倒立摆的质心高度（差一个常值偏置），\(\varphi\) 是虚拟腿相对竖直的倾角。</p>
+
+<p>足端位置：</p>
+
+\[
+p_x = L\sin\varphi,
+\quad
+p_y = -L\cos\varphi.
+\]
+
+<p>若广义力取与 \((L,\varphi)\) 成对的 \((F_L,\ \tau_\varphi)\)：\(F_L&gt;0\) 表示沿髋→足方向压缩（把轮往地上按），\(\tau_\varphi\) 是绕髋转虚拟腿的力矩，则</p>
+
+<div class="eq-box">
+$$
+\tau_{\mathrm{joint}} = J_{L\varphi}^{\mathrm{T}}
+\begin{bmatrix} F_L \\ \tau_\varphi \end{bmatrix},
+\quad
+\begin{bmatrix} \dot L \\ \dot\varphi \end{bmatrix}
+= J_{L\varphi}\,\dot q.
+$$
+</div>
+
+<p>不必先求 \(J_{L\varphi}\)。更不容易画错的算法是：</p>
+
+<ol>
+  <li>把任务力变到笛卡尔：\(\hat r = p/L\)（髋指向足），\(\hat t = (-\hat r_y,\hat r_x)\)（逆时针转 \(90^\circ\)）。</li>
+  <li>\(F = F_L\,\hat r + (\tau_\varphi / L)\,\hat t\)。</li>
+  <li>\(\tau = J_{\mathrm{cart}}^{\mathrm{T}} F\)，\(J_{\mathrm{cart}}\) 即第 5 节那个 \(J\)。</li>
+</ol>
+
+<p>高度环的最小实现（准静态）：</p>
+
+<div class="eq-box">
+$$
+F_L = mg_{\mathrm{share}}\cos\varphi + k_p(L^*-L) + k_d(-\dot L).
+$$
+</div>
+
+<p>第一项是重力在腿轴上的分量（\(\varphi=0\) 时就是 \(mg\)）；PD 跟踪蹲起。\(\tau_\varphi\) 在第一版可以取 0，让 LQR 只通过<strong>轮力矩</strong>管 pitch——这正是「平衡仍在摆模型里」的接法。</p>
+</section>
+
+<section id="lqr">
+<h2>10. 接到你已有的 LQR：同一拍里谁输出什么</h2>
+
+<p>把轮式倒立摆状态仍取 \(x=[\theta,\omega,s,\dot s]^{\mathrm{T}}\)。质心高度进入线性化，记为 \(h\)（可取 \(h=L+\) 车体偏置）。</p>
+
+<div class="eq-box">
+$$
+\tau_{\mathrm{wheel}} = -K(h)\,(x-x_{\mathrm{ref}}) + \tau_{\mathrm{ff}},
+\qquad
+L^* = L^*(t)\ \text{（蹲起规划）},
+\qquad
+(\tau_{\mathrm{hip}},\tau_{\mathrm{knee}}) = J^{\mathrm{T}} F(L,L^*,\varphi).
+$$
+</div>
+
+<p>关键假设：<strong>蹲起比平衡慢</strong>。\(h\) 在平衡回路看起来是缓变参数，所以你可以对每个 \(h\) 离线解一次离散 LQR，运行时按当前腿长插值 \(K(h)\)。这就是增益调度。若蹲起故意很快（跳跃），准静态和「\(h\) 慢变」都破，VMC+调度 LQR 不够，那是 Ascento 跳跃那段要另开的力规划，第一版不要做。</p>
+
+<p>和滑轨腿版本的关系：</p>
+
+<table>
+  <thead><tr><th></th><th>prismatic 滑轨</th><th>髋膝 + VMC</th></tr></thead>
+  <tbody>
+    <tr><td>高度坐标</td><td>关节 \(h\) 本身</td><td>\(L(\theta_1,\theta_2)\)</td></tr>
+    <tr><td>高度力到执行器</td><td>力源直接推滑轨</td><td>\(\tau=J^{\mathrm{T}}F\)</td></tr>
+    <tr><td>LQR</td><td>同一套，\(K(h)\)</td><td>同一套，\(K(L)\)</td></tr>
+    <tr><td>新风险</td><td>几乎没有</td><td>奇异、肘形选择、\(J\) 符号</td></tr>
+  </tbody>
+</table>
+
+<p>所以仿真第一版用滑轨完全合理：先证明 \(K(h)\) 和裕度随高度的变化。髋膝是把同一套 LQR <strong>接到可制造的腿</strong>，不是另一套平衡理论。</p>
+</section>
+
+<section id="why">
+<h2>11. 为什么用 VMC，而不是把腿的动力学也推进拉格朗日</h2>
+
+<p>完整做法：广义坐标加上 \(\theta_1,\theta_2\)，再写整车 \(M(q)\ddot q+C+G=Q\)，然后 LQR/MPC 在更高维状态上设计。能做，但贵，而且你现有的「倒立摆手感」全部作废。</p>
+
+<p>VMC 的取舍是<strong>准静态腿</strong>：</p>
+
+<ul>
+  <li>腿质量相对车体通常更小，蹲起带宽远低于 200 Hz 平衡回路；</li>
+  <li>忽略 \(\ddot\theta_{\mathrm{leg}}\) 相关的惯性项，把腿当成力传递机构；</li>
+  <li>模型误差当作扰动，丢给 LQR 反馈（和你把斜坡当扰动、用前馈+反馈分工是同一句话）。</li>
+</ul>
+
+<p>这就是「解耦」的精确含义：平衡问题的模型阶数不变，只是参数 \(h\) 会变；腿形问题退化成运动学 + 静力学映射。</p>
+
+<div class="callout">
+  <p class="t">什么时候准静态会骗人</p>
+  <p style="margin:0">快速蹬伸（跳跃起跳）、腿质量很大、膝附近高速甩动。那时惯性项不是小扰动。双轮足陪伴机器人日常走、蹲、过坎，准静态够用；宣传片里的跳，Ascento 用的是另外的开环力曲线，不是把 VMC 调猛。</p>
+</div>
+</section>
+
+<section id="five">
+<h2>12. 五连杆：看一眼，不要推</h2>
+
+<p>RoboMaster 平衡步兵常用<strong>五连杆</strong>：两个电机在髋附近，通过平行四边形把运动传到小腿，虚拟腿仍是 \((L,\varphi)\)。对你而言，任务空间和 \(\tau_{\mathrm{virtual}}=J^{\mathrm{T}}F\) 的逻辑不变，变的只是 \(J\) 从「\(\theta_1,\theta_2\to p\)」换成「两个电机角 → \(L,\varphi\)」。</p>
+
+<p>掌握标准：能指着图说「五个杆是为了把电机放车体上、减轻小腿惯量；我面试用二连杆讲清映射就够」。解析几何、奇异曲线优化不学。</p>
+</section>
+
+<section id="quiz">
+<h2>13. 闭卷自测（纸 + 笔，算完再展开）</h2>
+
+<p>规则与仓库其他题库相同：0 / 0.5 / 1 分。建议全对再去看 Ascento 架构图。</p>
+
+<details class="quiz">
+  <summary>Q1 · 为什么力映射是 \(J^{\mathrm{T}}\) 不是 \(J^{-1}\)？</summary>
+  <div class="ans">速度：\(\dot x=J\dot q\)。虚功：\(F^{\mathrm{T}}J\delta q=\tau^{\mathrm{T}}\delta q\) 对任意 \(\delta q\) 成立，故 \(\tau=J^{\mathrm{T}}F\)。\(J^{-1}\) 是速度逆映射；静力学对偶是转置。奇异时 \(J^{-1}\) 不存在，\(J^{\mathrm{T}}\) 仍存在。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q2 · 写出 \(p(q)\) 和 \(J(q)\)，并给出 \(\det J\)。</summary>
+  <div class="ans">
+    \(p_x=l_1\cos\theta_1+l_2\cos\theta_{12}\)，\(p_y=l_1\sin\theta_1+l_2\sin\theta_{12}\)。
+    \(J\) 见第 5 节。\(\det J=l_1 l_2\sin\theta_2\)。
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>Q3 · 例 A 的几何下，纯沿虚拟腿的 \(F\) 的髋矩为什么是 0？</summary>
+  <div class="ans">力的作用线过髋，对髋的力臂为 0。膝不在该直线上，所以膝矩一般非零。这是几何，不是巧合。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q4 · 重力竖直、腿前倾 15°，髋矩的数量级应等于什么几何量？</summary>
+  <div class="ans">\(\lvert\tau_1\rvert=\lvert p_x\rvert\cdot mg_{\mathrm{share}}\)（\(F_x=0\) 时）。例 B：\(0.070\times 8\approx 0.56\,\mathrm{N\cdot m}\)。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q5 · 膝完全伸直时，沿腿方向「使不上力」的代数原因？工程上怎么躲？</summary>
+  <div class="ans">\(\sin\theta_2=0\Rightarrow\det J=0\)，\(J\) 两列共线。站立 \(L\) 上限离开 \(l_1+l_2\)，保持最小膝屈。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q6 · VMC 之后 LQR 还要不要重推带髋膝的 \(M(q)\)？为什么 \(K(h)\) 合法？</summary>
+  <div class="ans">第一版不要。腿准静态，平衡模型仍是倒立摆，\(h\)（或 \(L\)）慢变，对每个 \(h\) 线性化并插值 \(K\)。蹲起远慢于 200 Hz 平衡环是前提。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q7 · 滑轨腿和髋膝腿，LQR 层有何不同？</summary>
+  <div class="ans">没有不同。差别只在高度力如何到达执行器：滑轨直接出力，髋膝走 \(J^{\mathrm{T}}F\)。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q8 · \(F_y\) 符号画反，实机会怎样？</summary>
+  <div class="ans">本该把轮往地上按，变成往上提。高度环正反馈，蹲下会弹起或立刻饱和。应用「撑住车体 ⇒ 足端力朝地 ⇒ \(F_y&lt;0\)」检查。</div>
+</details>
+</section>
+
+<section id="talk">
+<h2>14. 面试怎么讲、边界怎么停</h2>
+
+<p><strong>60 秒版本：</strong></p>
+
+<p>「轮足我把机器人看成可变高度的轮式倒立摆。平衡仍是 LQR，增益按腿长 \(K(h)\) 调度。腿不是滑轨，所以用 VMC：在虚拟腿上设支撑力，关节力矩 \(\tau=J^{\mathrm{T}}F\)。这是静力学对偶，虚功一行推出来的。膝伸直 \(J\) 奇异，站立高度不放在行程顶端。腿的完整动力学我按准静态处理，惯性当扰动丢给 LQR，和斜坡扰动同一套分工。」</p>
+
+<p><strong>被问 WBC / QP / 浮动基：</strong></p>
+
+<p>「多接触、冗余力分配时才需要 QP 把接触力当决策变量。我这条腿是单轮接触、力映射到两个关节，VMC 够用。全身动力学优化没做过。」</p>
+
+<p><strong>被问五连杆：</strong></p>
+
+<p>「电机入体、小腿惯量减小，任务空间还是虚拟腿。我会在二连杆上把 \(J^{\mathrm{T}}F\) 推干净，五连杆只换雅可比的来源。」</p>
+
+<p><strong>被问你那台矮车裕度差：</strong></p>
+
+<p>「矮质心让 RHP 零点和不稳定极点靠太近，定点裕度是几何上限。轮足把 \(h\) 抬起来就是在改这对 \(z,p\)。变高度仿真要画的就是裕度随 \(h\) 的曲线，VMC 只是让这条曲线能用真实关节实现。」</p>
+</section>
+
+<section id="read">
+<h2>15. 阅读对照（读完讲义再翻，用来核对）</h2>
+
+<table>
+  <thead><tr><th>材料</th><th>读什么</th><th>读到哪停</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Lynch &amp; Park《Modern Robotics》第 5 章（中译《现代机器人学》）</td>
+      <td>平面速度运动学；静力学对偶 \(\tau=J^{\mathrm{T}}F\)；虚功</td>
+      <td>不要钻空间 6 维螺旋、指数坐标</td>
+    </tr>
+    <tr>
+      <td>配套视频（NW 公开课，同书章节）</td>
+      <td>看一遍二连杆 \(J\) 的板书</td>
+      <td>与第 5、6 节对上即可</td>
+    </tr>
+    <tr>
+      <td>中文「轮腿 VMC 五连杆」（平衡步兵开源文档 / 知乎）</td>
+      <td>虚拟腿 \((L,\varphi)\) 与 LQR 拼接的框图</td>
+      <td>不要把五连杆几何当作业</td>
+    </tr>
+    <tr>
+      <td>Klemm et al., ICRA 2019, <em>Ascento: A Two-Wheeled Jumping Robot</em></td>
+      <td>控制架构图：平衡一套、腿高度/姿态一套</td>
+      <td>跳跃力曲线、机构优化不精读</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>建议节奏：第 3–7 节当天手推 + 复算例 A/B；第 8–11 节第二天讲给自己听；第 13 节隔一天闭卷。Ascento 架构图放最后，用来确认「你的分层和产品原型一致」，不是用来学跳跃。</p>
+</section>
+
+<footer class="note">
+  与本仓库 <a href="./lagrange_dynamics_why.html">拉格朗日补课</a>、<a href="./lqr_balance_theory.html">LQR 理论复习</a> 配套。
+  虚功的「任意 \(\delta q\)」与拉格朗日篇第 3 节是同一条原理；本篇只把它用在足端力到关节力矩。
+</footer>
+</main>
+</div>
+<script>
+(function () {
+  document.querySelectorAll(".code-block").forEach(function (block) {
+    var btn = block.querySelector(".copy-button");
+    var code = block.querySelector("pre code");
+    if (!btn || !code) return;
+    btn.addEventListener("click", function () {
+      var text = code.textContent;
+      var done = function () {
+        btn.textContent = "已复制";
+        setTimeout(function () { btn.textContent = "复制"; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+          fallbackCopy(text, done);
+        });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+  function fallbackCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    done();
+  }
+})();
+</script>
+</body>
+</html>
