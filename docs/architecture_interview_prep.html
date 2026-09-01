@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>运控架构面试准备：一页纸架构、情景题答案与小 demo 规格</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --paper: #fffcf7;
+    --ink: #1a1f24;
+    --muted: #5a6570;
+    --line: #d8d2c6;
+    --accent: #0b5f6b;
+    --accent-soft: #e6f2f3;
+    --warn: #8a3b12;
+    --warn-bg: #f8eee6;
+    --ok: #1f6b3a;
+    --ok-bg: #e8f4ec;
+    --code-bg: #eef1f3;
+    --shadow: 0 1px 0 rgba(26,31,36,.04), 0 12px 40px rgba(26,31,36,.06);
+    --radius: 10px;
+    --max: 52rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 12% -8%, #e8f4f5 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #f3efe6 0%, transparent 50%),
+      var(--bg);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong",
+      "Libertinus Serif", "Iowan Old Style", Georgia, serif;
+    line-height: 1.75;
+    font-size: 17px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: 250px minmax(0, var(--max));
+    gap: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  nav.toc {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding: 1rem;
+    background: rgba(255,252,247,.85);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(8px);
+    font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  nav.toc h2 {
+    margin: 0 0 .75rem;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--ink);
+    text-decoration: none;
+    padding: .22rem 0;
+    border-left: 2px solid transparent;
+    padding-left: .55rem;
+  }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .l2 { padding-left: 1.1rem; color: var(--muted); font-size: 12px; }
+  main {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 2.25rem 2rem 3rem;
+  }
+  header.doc-head {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header.doc-head .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .5rem;
+  }
+  h1 {
+    font-size: clamp(1.55rem, 3vw, 2.05rem);
+    line-height: 1.25;
+    margin: 0 0 .75rem;
+    font-weight: 700;
+  }
+  .lead { color: var(--muted); margin: 0; font-size: 1.02rem; }
+  h2 {
+    margin: 2.75rem 0 1rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--line);
+    font-size: 1.45rem;
+    color: var(--accent);
+  }
+  h2:first-of-type { border-top: none; }
+  h3 { margin: 1.75rem 0 .65rem; font-size: 1.15rem; }
+  h4 { margin: 1.25rem 0 .4rem; font-size: 1.02rem; }
+  p { margin: .7rem 0; }
+  ul, ol { padding-left: 1.35rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .9em;
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 4px;
+  }
+  .code-block { position: relative; margin: 1rem 0; }
+  .code-block .copy-button {
+    position: absolute;
+    top: .55rem;
+    right: .55rem;
+    z-index: 1;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    padding: .22rem .55rem;
+    border: 1px solid #3d4a52;
+    border-radius: 4px;
+    background: #2a343a;
+    color: #d7e2e7;
+    cursor: pointer;
+  }
+  .code-block .copy-button:hover { background: #354248; }
+  pre {
+    background: #1e262b;
+    color: #e8eef1;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .95rem;
+    margin: 1rem 0 1.25rem;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: .55rem .65rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: .85rem 1rem;
+    margin: 1.1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+  .callout.ok { border-left-color: var(--ok); background: var(--ok-bg); }
+  .callout .t {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 650;
+    font-size: .92rem;
+    margin: 0 0 .35rem;
+  }
+  .fig {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: #fbfaf7;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: .92rem;
+  }
+  .fig .cap { color: var(--muted); margin-top: .65rem; font-size: .85rem; }
+  .ascii {
+    white-space: pre;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    overflow-x: auto;
+    margin: 0;
+  }
+  details.quiz {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .7rem .9rem;
+    margin: .7rem 0;
+    background: #fff;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  details.quiz summary { cursor: pointer; font-weight: 650; color: var(--accent); }
+  details.quiz .ans { margin-top: .55rem; color: var(--ink); }
+  details.quiz .ans p { margin: .4rem 0; }
+  details.quiz .why { color: var(--muted); font-size: .9rem; margin-top: .4rem; }
+  footer.note {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .9rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    main { padding: 1.5rem 1.1rem 2.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <h2>目录</h2>
+  <a href="#goal">0. 他们说的「架构」是什么</a>
+  <a href="#onepage">1. 你的系统一页纸</a>
+  <a href="#schema">2. Schema：State / Command / Mode</a>
+  <a href="#fsm">3. 模式机与仲裁表</a>
+  <a href="#rules">4. 三条越界禁令</a>
+  <a href="#evolve">5. 演进记录（能讲取舍）</a>
+  <a href="#scenario">6. 情景题与标准答案</a>
+  <a class="l2" href="#s-rl">6.1 接 RL 改哪里</a>
+  <a class="l2" href="#s-crash">6.2 策略崩了这一拍</a>
+  <a class="l2" href="#s-sim">6.3 仿真上真机改几行</a>
+  <a class="l2" href="#s-schema">6.4 两队同时改结构体</a>
+  <a class="l2" href="#s-thread">6.5 线程模型</a>
+  <a class="l2" href="#s-reg">6.6 回归怎么做</a>
+  <a class="l2" href="#s-more">6.7 其余高频</a>
+  <a href="#large">7. 「大型项目」经历翻译</a>
+  <a href="#demo">8. 小 demo 规格（你来做）</a>
+  <a href="#present">9. 三分钟演示脚本</a>
+  <a href="#quiz">10. 闭卷自测</a>
+  <a href="#talk">11. 话术与反问</a>
+  <a href="#dont">12. 不要做的</a>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="eyebrow">运控岗补课 · 架构篇 · 配合 ROS2 / VMC 篇</p>
+  <h1>运控软件架构：一页纸、情景题答案与小 demo 规格</h1>
+  <p class="lead">
+    JD 原话：「梳理模块边界、接口定义、数据流与控制模式切换机制」。这四个词就是全部考纲。本篇把你的平衡车按这四个词重新整理成可打开讲的材料，给出高频情景题的标准答案，并规定一个几百行、无 ROS 依赖的小 demo 让答案有东西可指。
+  </p>
+</header>
+
+<section id="goal">
+<h2>0. 他们说的「架构」是什么，不是什么</h2>
+
+<table>
+  <thead><tr><th>是</th><th>不是</th></tr></thead>
+  <tbody>
+    <tr><td>分层与越界禁令：谁可以写执行器、谁不许依赖 ROS</td><td>类图、设计模式名词</td></tr>
+    <tr><td>Schema：State / Command / Mode 的字段、单位、时间戳、版本</td><td>UML 建模工具熟练度</td></tr>
+    <tr><td>数据流：多速率衔接、过期规则、单 writer、无锁交换</td><td>微服务 / DDD</td></tr>
+    <tr><td>模式切换：状态机 + 仲裁 + 终裁权 + 力矩衔接</td><td>把「切换」理解为换一个 PID 参数集</td></tr>
+    <tr><td>演进：加算法 / 换板 / 加传感器时核心不改，怎么保证</td><td>一次性画一张宏大目标图</td></tr>
+  </tbody>
+</table>
+
+<p>判断标准只有一条：<strong>加 RL、换 MCU、多一个传感器时，调度层与安全层不改。</strong>面试所有情景题都在测这一条。</p>
+
+<div class="callout">
+  <p class="t">本篇的用法</p>
+  <p style="margin:0">第 1–5 节是「材料」：面试时可以打开或默画。第 6 节是「答案」：按情景题背骨架，不背句子。第 8–9 节是「证据」：做一个小 demo，让第 6 节每个答案都能指到一行代码或一条日志。</p>
+</div>
+</section>
+
+<section id="onepage">
+<h2>1. 你的系统一页纸（默画）</h2>
+
+<p>真机固件（本仓库）与仿真车仓库合在一张图上，标出频率、能否丢包、谁写 \(\tau\)。</p>
+
+<div class="fig">
+<pre class="ascii">上位机 / 仿真侧（Linux）
+  ROS2 /cmd_vel、串口命令、遥测查看        ─ 任意频率，可丢，可断
+  仿真：balance_controller_node 200 Hz    ─ 扮演 MCU；backend 在 launch 时选
+  仿真：ros2_control effort 接口           ─ 扮演硬件 read/write
+           │ 串口文本 / micro-ROS (WiFi, best-effort)
+           ▼
+ESP32 Core0  CommHost  comm_task
+  解析命令、合成 CommandInput、超时判 stamp、发遥测
+           │ 唯一边界：shared_state.h  两个 POD 快照 + portMUX 自旋锁
+           │ publishCommand / fetchSnapshot   禁止直接调对方对象
+           ▼
+ESP32 Core1  control_task  200 Hz  vTaskDelayUntil
+  [read]   WheelSensor ×2 · CurrentSensor ×2 · Ahrs
+  [ref]    TwistRef（参考成形）· TrimObserver · 斜坡前馈
+  [law]    BalanceController（LQR 共模）· YawMixer（差速）· HoldPolicy
+  [gate]   Safety.evaluate → limit         ← 唯一 τ 出口前的闸
+  [write]  WheelActuator.applyTorque → 电流 PI → MCPWM
+  [tele]   publishSnapshot(ControlSnapshot)
+           ▼
+执行器：有刷电机 + ACS712 电流 + PCNT 编码器</pre>
+  <p class="cap">图 1 · 一拍只有一条路径写 PWM；Core0 永远不碰执行器对象。</p>
+</div>
+
+<p>讲这张图时按「频率 → 边界 → 权限」三句话：</p>
+
+<ol>
+  <li><strong>频率</strong>：200 Hz 硬周期只在 Core1；Core0 与上位机都是软频率。</li>
+  <li><strong>边界</strong>：两核之间只有 <code>ControlSnapshot</code> 和 <code>CommandInput</code> 两个 POD，临界区只拷一个结构体。换通信层（串口 → micro-ROS）控制环零改动——这是已经发生过的事实，不是设想。</li>
+  <li><strong>权限</strong>：控制律只产 \(\tau\) 请求；<code>Safety</code> 是执行器前唯一闸门；上位机断链只能让速度归零，不能让车倒。</li>
+</ol>
+</section>
+
+<section id="schema">
+<h2>2. Schema：State / Command / Mode 现状与缺口</h2>
+
+<p>面试里「接口定义」= 你能不能把结构体讲成契约。现状照实说，缺口主动说。</p>
+
+<h3>2.1 现状</h3>
+
+<table>
+  <thead><tr><th>方向</th><th>结构体</th><th>关键字段</th><th>契约</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>控制 → 通信</td>
+      <td><code>ControlSnapshot</code></td>
+      <td><code>stamp_ms</code>、pitch/yaw/轮速、<code>tau_nm[2]</code>、<code>effort[2]</code>、<code>fault</code> 位掩码、<code>mode</code>、<code>armed</code>、<code>ctrl_hz</code>、<code>overrun_count</code></td>
+      <td>单 writer（Core1）；SI 单位；只在 ROS 消息边界换算</td>
+    </tr>
+    <tr>
+      <td>通信 → 控制</td>
+      <td><code>CommandInput</code></td>
+      <td><code>stamp_ms</code>、<code>linear_x/angular_z</code>、<code>mode</code>、<code>lqr_gains[4]</code>、<code>reset_seq</code>、<code>calib_seq</code>、坡角注入</td>
+      <td>stamp 过期 → <code>kCmdTimeout</code>；<code>*_seq</code> 递增即触发一次，不是电平</td>
+    </tr>
+    <tr>
+      <td>模式</td>
+      <td><code>uint8_t mode</code></td>
+      <td>0 开环 · 1 PWM 平衡 · 2 电流手调 · 3 电流+LQR</td>
+      <td>切换当拍 <code>reset()</code> 全部积分与参考</td>
+    </tr>
+    <tr>
+      <td>故障</td>
+      <td><code>Safety::Fault</code></td>
+      <td><code>kFall | kImuLost</code>（硬，锁存）· <code>kCmdTimeout</code>（软）</td>
+      <td>硬故障切电机需人工 <code>r</code>；软故障只清 \(v,\omega\)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>值得点名的两个设计：<code>reset_seq</code> 用序号而不是布尔——避免「上位机还没来得及清位就被控制环反复消费」；<code>cmd_stamp_ms==0</code> 视为尚未收到指令、不判超时——避免上电竞态误锁。这是接口定义里的细节，面试官爱听。</p>
+
+<h3>2.2 缺口（主动说，并说补法）</h3>
+
+<table>
+  <thead><tr><th>缺</th><th>后果</th><th>补法（demo 里实现）</th></tr></thead>
+  <tbody>
+    <tr><td>无版本号</td><td>两边头文件不一致时静默错解</td><td><code>schema_version</code> 字段 + 握手校验 + 不一致拒绝 activate</td></tr>
+    <tr><td>无 CRC / 序号</td><td>串口丢字节即错帧；重复帧不可辨</td><td>定长二进制帧：<code>seq, t_ns, payload, crc16</code></td></tr>
+    <tr><td>命令与参数混在一个结构体</td><td>每拍搬运增益等慢变量</td><td>拆 <code>Command</code>（每拍）与 <code>Config</code>（变更时）</td></tr>
+    <tr><td>Mode 是裸整数</td><td>非法值无处拒绝</td><td>枚举 + MCU 侧白名单；非法回退 Damping</td></tr>
+  </tbody>
+</table>
+</section>
+
+<section id="fsm">
+<h2>3. 模式机与仲裁表（能默写）</h2>
+
+<p>真机上已存在但分散的布尔：<code>cmd.mode</code>、<code>armed</code>、<code>hard_fault</code>、<code>cmd_lost</code>、<code>balancing</code>。收成显式状态：</p>
+
+<div class="fig">
+<pre class="ascii">              r 且预武装通过
+  Observe ─────────────────────► Balance ──── 策略心跳活 + 已稳 ───► PolicyWalk
+   ▲  ▲                          │   ▲                                 │
+   │  └── clearFault 且扶正 ──── │   └──── 心跳丢/NaN/超幅（软） ───────┘
+   │                             │
+   └────────── 摔倒 / IMU 丢失（硬，锁存） ────────────── Fault
+                                              cmd 超时：不改模式，只清 v*,ω*</pre>
+  <p class="cap">图 2 · 软故障是标志位，硬故障才换模式。PolicyWalk 是给产品加的那一格，真机现状没有。</p>
+</div>
+
+<table>
+  <thead><tr><th>转移</th><th>谁申请</th><th>谁批准</th><th>力矩怎么接</th><th>真机对应</th></tr></thead>
+  <tbody>
+    <tr><td>Observe → Balance</td><td>操作员 <code>r</code></td><td>MCU：预武装（轮子探转）、IMU OK</td><td>从 0 按 <code>kLqrMaxSlew</code> 爬</td><td><code>armed = true</code></td></tr>
+    <tr><td>Balance → PolicyWalk</td><td>策略进程</td><td>编排器：心跳新鲜、Balance 已稳、无硬故障</td><td>当拍换 writer，斜率衔接</td><td>缺，demo 补</td></tr>
+    <tr><td>PolicyWalk → Balance</td><td>编排器（超时）或操作员</td><td>无条件</td><td>LQR 从当前 \(\tau\) 接，不从 0</td><td>缺，demo 补</td></tr>
+    <tr><td>任意 → Fault</td><td>MCU 终裁</td><td>不需要批准</td><td>立即 0，锁存</td><td><code>kHardFaultMask</code></td></tr>
+    <tr><td>Fault → Observe</td><td><code>clearFault</code></td><td>IMU OK、扶正</td><td>仍不出力，需再 <code>r</code></td><td><code>safety.clearFault()</code> + <code>armed=false</code></td></tr>
+    <tr><td>软故障</td><td>—</td><td>—</td><td>不换模式，\(v^*=\omega^*=0\)</td><td><code>kCmdTimeout</code></td></tr>
+  </tbody>
+</table>
+
+<p>两条硬规则，面试原句：</p>
+
+<ol>
+  <li><strong>单 writer</strong>：同一拍只有一个模块产生 \(\tau^*\)；切换先改模式再改 writer；禁止两个律相加当「平滑」。</li>
+  <li><strong>双机模式机</strong>：上位机跑完整 FSM 给算法看；MCU 只认识 Damping / 闭环 / Fault，非法模式或超时自己回退，不听上位机。</li>
+</ol>
+</section>
+
+<section id="rules">
+<h2>4. 三条越界禁令（回答任何「能不能」的底牌）</h2>
+
+<ol>
+  <li><strong>策略 / 感知 / 规划不直写关节。</strong>只能产生指令进仲裁层。视觉丢帧、Nav2 停、RL 崩，都只是指令源消失。</li>
+  <li><strong>ROS2 / DDS / WiFi 不进平衡回路。</strong>相位账：\(\omega\approx15\,\mathrm{rad/s}\) 时 20 ms 即 \(17^\circ\)，超过该构型裕度上限。回路在 MCU。</li>
+  <li><strong>软故障不改模式。</strong>断链、超时、丢帧只清参考；只有摔倒 / IMU / 驱动器错误改模式并锁存。</li>
+</ol>
+
+<p>被问到任何「X 能不能直接 Y」，先对照这三条；违反即回答「不能，因为第 n 条」，再给替代路径。</p>
+</section>
+
+<section id="evolve">
+<h2>5. 演进记录：能讲取舍才算架构经验</h2>
+
+<p>「持续演进」考的是你改过什么、为什么改、什么没改。按你仓库 stage 文档整理：</p>
+
+<table>
+  <thead><tr><th>阶段</th><th>改了什么</th><th>为什么</th><th>什么没动</th></tr></thead>
+  <tbody>
+    <tr><td>stage0 → 2</td><td>先测电机台架、再上安全层，控制律之前</td><td>调 PID/LQR 炸机的代价全靠闸门兜</td><td>—</td></tr>
+    <tr><td>stage2 → 5</td><td>PID → 速度环 → LQR，同一个 <code>BalanceController</code> 填不同增益</td><td>三阶段是同一式子不同 K，不做三套 backend</td><td>Safety、shared_state、执行器接口</td></tr>
+    <tr><td>PWM → 电流 → 力矩</td><td><code>WheelActuator</code> 加 <code>applyCurrent/applyTorque</code></td><td>让 LQR 输出 N·m，与仿真同口径</td><td>控制环调用形态</td></tr>
+    <tr><td>串口 → micro-ROS</td><td>Core0 加 rclc 订阅，合成同一个 <code>CommandInput</code></td><td>换通信层</td><td>Core1 零改动（边界起效的证据）</td></tr>
+    <tr><td>上位机回路 → MCU 回路</td><td>仿真节点做 200 Hz；真机把环下沉</td><td>不稳定极点不容忍 WiFi+DDS 延迟</td><td>估计-控制接口</td></tr>
+    <tr><td>指标冻结</td><td>±5 cm 定点不再追</td><td>RHP 零点 / 相位预算为负，几何边界</td><td>转向约束处理与前馈</td></tr>
+  </tbody>
+</table>
+
+<p>两个「后悔」也准备好（架构面试会问缺点）：</p>
+
+<ul>
+  <li><code>CommandInput</code> 把每拍指令和慢变参数混装，每 5 ms 搬一堆增益；应拆 Command / Config。</li>
+  <li>模式与武装散落在 <code>stage5_main.cpp</code> 的 <code>if</code> 里，没有一处显式转移表；行为对，但可读性和可测试性差。demo 就是为了把它收成状态机。</li>
+</ul>
+</section>
+
+<section id="scenario">
+<h2>6. 情景题与标准答案</h2>
+
+<p>背骨架不背句子。每题结构：先说禁令 / 边界 → 改哪 → 不改哪 → 怎么验证。</p>
+
+<h3 id="s-rl">6.1 「现在要接一个 RL 策略，哪些改、哪些绝对不改？」</h3>
+
+<details class="quiz" open>
+  <summary>标准答案</summary>
+  <div class="ans">
+    <p><strong>改</strong>：(1) 新增一个 writer：<code>PolicyAdapter</code>，把 State 拼成 obs、把 action 转成 Command；(2) 模式机加 <code>PolicyWalk</code> 一格和两条转移；(3) 仲裁层加一条规则：PolicyWalk 时 writer = 策略，其它模式 writer = LQR；(4) 心跳与合法性检查（超时、NaN、幅值）。</p>
+    <p><strong>不改</strong>：Safety 闸门、MCU 协议与 Schema 语义（最多加字段并升版本）、LQR 本身、执行器层、200 Hz 调度。</p>
+    <p><strong>验证</strong>：杀掉策略进程，日志里 writer 当拍切回 LQR，\(\tau\) 连续无阶跃；Fault 触发时策略无法把车拉回 PolicyWalk。</p>
+    <p class="why">考点：扩展点是否在仲裁层而不是塞进 LQR；安全终裁是否独立于策略。</p>
+  </div>
+</details>
+
+<h3 id="s-crash">6.2 「策略进程崩了，这一拍力矩谁写？下一拍呢？」</h3>
+
+<details class="quiz" open>
+  <summary>标准答案</summary>
+  <div class="ans">
+    <p>这一拍：仲裁层看到心跳过期（或读到旧 seq），writer 立刻置为 LQR；LQR 从<strong>上一拍实际输出的 \(\tau\)</strong> 开始按斜率衔接，不是从 0 起。模式回 Balance，不进 Fault——这是软故障。</p>
+    <p>下一拍及以后：\(v^*=\omega^*=0\) 保持站立；策略重启后必须重新申请 PolicyWalk，且要 Balance 已稳、无硬故障才批准。禁止自动弹回。</p>
+    <p>再往下一层：即便编排器整机死掉，MCU 的 cmd 超时也会自己清速度继续站——两层兜底。</p>
+    <p class="why">考点：单 writer、bumpless、软硬故障分级、MCU 终裁。</p>
+  </div>
+</details>
+
+<h3 id="s-sim">6.3 「仿真跑通的代码，上真机改哪几行？」</h3>
+
+<details class="quiz" open>
+  <summary>标准答案</summary>
+  <div class="ans">
+    <p>目标是只换最底层：Transport（UDP/共享内存 → 串口/CAN）和 Plant（Gazebo/MuJoCo → 真电机）。算法进程只调 SDK/编排器 API，不感知后端。</p>
+    <p>诚实现状：我的仿真车节点扮演 MCU，真机则是固件；两边共用的是<strong>接口语义</strong>（状态字段、命令口径 \(v,\omega\)、超时清速度、硬故障锁存），不是同一份二进制。参数分别标定（质心高度差导致坡度放大比 1.05 vs 2.19 就是分开标出来的）。</p>
+    <p>怎么补：把编排器抽出来，仿真里接 SimAdapter 扮演 MCU（同 Schema、同安全子集），真机接串口；这样「改几行」变成「改配置里的 transport 类型」。</p>
+    <p class="why">考点：分叉点在哪一层；是否诚实区分「接口一致」与「代码一致」。</p>
+  </div>
+</details>
+
+<h3 id="s-schema">6.4 「两个团队同时改 Command 结构体，怎么不打架？」</h3>
+
+<details class="quiz" open>
+  <summary>标准答案</summary>
+  <div class="ans">
+    <p>(1) Schema 单一来源：一个头文件 / IDL，两板同一份，进版本控制并有 owner。(2) 帧内带 <code>schema_version</code>，握手时校验；不一致拒绝进入 Active，而不是运行到一半错解。(3) 只加不删、新字段有默认值；删字段升主版本。(4) 每拍命令与慢变配置分开，减少改动面。(5) CI 里跑一遍「旧版发、新版收」的兼容测试。</p>
+    <p class="why">考点：接口契约意识；「不一致时拒绝启动」比「兼容一切」更实用。</p>
+  </div>
+</details>
+
+<h3 id="s-thread">6.5 「线程模型是什么？哪条路径不允许分配内存？」</h3>
+
+<details class="quiz" open>
+  <summary>标准答案</summary>
+  <div class="ans">
+    <p>真机：两核两任务。Core1 <code>control_task</code> 200 Hz，<code>vTaskDelayUntil</code> 固定周期；Core0 <code>comm_task</code> 处理串口与 micro-ROS。二者只通过两个 POD 快照交换，portMUX 临界区内只做结构体拷贝；控制任务内无堆分配、无打印、无阻塞调用。曾试过用优先级压 WiFi/lwIP 压不住，最后靠双核物理隔离。</p>
+    <p>上位机编排器（rclcpp）：订阅回调在非实时线程写 <code>RealtimeBuffer</code>；周期任务无锁读、预分配帧缓冲、禁止日志和 <code>new</code>；service（切模式、清故障）放另一个回调组，避免在周期回调里同步调用死锁。</p>
+    <p class="why">考点：能否把实时纪律说成结构性约束，而不是「我小心一点」。</p>
+  </div>
+</details>
+
+<h3 id="s-reg">6.6 「怎么做回归？改了控制律怎么知道没坏？」</h3>
+
+<details class="quiz" open>
+  <summary>标准答案</summary>
+  <div class="ans">
+    <p>三层：(1) 单元级：纯函数模块（LQR、TwistRef、YawMixer、Safety）无硬件依赖，可在 PC 上喂序列对比输出。(2) 回放级：遥测日志作输入，重跑控制律比较 \(\tau\) 轨迹。(3) 系统级：自动化验收脚本，位置 / 航向 / 单轮里程 / 姿态漂移四项判据判「假稳定」——抓过一例遥测 244 s 稳定、实为静摩擦锁死且力矩单调发散。</p>
+    <p>架构上的前提：控制律不直接读硬件、不直接写 PWM，才能被回放。这也是为什么执行器与传感器要抽成 <code>WheelActuator</code> / <code>WheelSensor</code>。</p>
+    <p class="why">考点：可测试性是架构决策的结果；有真实抓 bug 案例。</p>
+  </div>
+</details>
+
+<h3 id="s-more">6.7 其余高频</h3>
+
+<details class="quiz">
+  <summary>「加一个新传感器（比如 VIO 位姿）进来，动哪里？」</summary>
+  <div class="ans">
+    <p>进估计层，不进控制律：作为一路观测进 KF（你有多观测串行更新的现成结构），以协方差表达可信度；State Schema 加字段并升版本；过期帧按软故障处理（该路 R 拉大或跳过更新），控制律看到的仍是同一组状态。控制律、安全层、执行器不动。</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>「把 ESP32 换成 STM32，上层要改什么？」</summary>
+  <div class="ans">
+    <p>理想：零。因为板间契约是 Schema + 帧协议，不是芯片。实际：<code>WheelActuator</code> / <code>WheelSensor</code> / <code>Ahrs</code> 底下的外设驱动换（MCPWM→TIM、PCNT→编码器模式、I2C 同），<code>control_task</code> 的周期机制换成 FreeRTOS 同名 API（本来就在用），上位机不知道换了板。这也是为什么外设要收在硬件边界层并在 <code>config.h</code> 吸收极性。</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>「为什么不直接用 ros2_control 做整套？」</summary>
+  <div class="ans">
+    <p>它解决的是 Linux 上「硬件抽象 + 周期调度 + 控制器 claim」，我的固件是同构实现。不用它做平衡回路是因为回路必须在 MCU（相位账）；上层关节伺服或仿真侧可以用。产品的模式切换是策略与 LQR 的 writer 仲裁 + 故障态，比 <code>switch_controllers</code> 多一层语义，所以编排器要自己写，但可以复用它的 <code>RealtimeBuffer</code> 和生命周期思想。</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>「多速率怎么衔接？RL 50 Hz、内环 200 Hz。」</summary>
+  <div class="ans">
+    <p>上位机指令带 stamp；MCU 每拍读最新值，零阶保持 + 斜率限幅（<code>TwistRef</code> 已经在做）；年龄超阈值当软故障。不做插值预测——预测错比保持旧值更危险。反向遥测降采样发，控制不等遥测。</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>「你设计里最想推翻的一个决定？」</summary>
+  <div class="ans">
+    <p>把 <code>mode</code> 做成裸整数并让 Core0 直接决定它。应该是上位机<strong>申请</strong>、MCU<strong>批准</strong>；现在 MCU 只在硬故障时否决。demo 里改成 MCU 侧白名单 + 拒绝回退。第二个是每拍命令和增益混装。</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>「大型 C++ 架构经验在哪？」（转第 7 节）</summary>
+  <div class="ans"><p>见下一节，用 OpenHarmony 网络子系统回答，翻译成边界与契约语言。</p></div>
+</details>
+</section>
+
+<section id="large">
+<h2>7. 「大型软件项目」经历怎么翻译</h2>
+
+<p>你的大型系统经验是 OpenHarmony 网络子系统与 NewIP 协议栈，不是平衡车。面试要把它从「协议名单」翻成「架构语言」。</p>
+
+<table>
+  <thead><tr><th>你做过的</th><th>翻译成架构词</th><th>一句话</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Netlink 监听网卡事件 → 更新路由 / 防火墙；SA 服务经 IPC 提供增删改查</td>
+      <td>模块边界 + 接口契约</td>
+      <td>「内核事件面、系统服务面、JS 接口面三层，每层只通过固定接口穿越；C 只用于与内核 API 交互」</td>
+    </tr>
+    <tr>
+      <td>NewIP：用户态 AF_NINET 套接字 → 内核三元映射注册 fd → 邻居表 / 路由表状态机</td>
+      <td>分层协议栈、状态机、数据结构选型</td>
+      <td>「新增一种地址族而不改上层 socket API，靠的是协议族注册边界；邻居表状态机和轮足模式机是同一类东西」</td>
+    </tr>
+    <tr>
+      <td>perf / ftrace 定位协议栈开销，路由表 hash + 软件缓存</td>
+      <td>性能剖析 → 数据结构演进</td>
+      <td>「先量再改，和我后来做误差预算排序主导项是一个方法」</td>
+    </tr>
+    <tr>
+      <td>Vxworks ↔ OpenHarmony 软总线互通；1–5 ms 时钟同步</td>
+      <td>跨平台接口层、多机时基</td>
+      <td>「两套系统一份协议语义，对应现在仿真 / 真机一份 Schema」</td>
+    </tr>
+    <tr>
+      <td>DNS / DHCP / NTP 服务端跨 3.1 → 4.1 版本维护</td>
+      <td>接口兼容与演进</td>
+      <td>「版本升级时对外接口不变、内部实现替换，就是‘持续演进’」</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>控制在 60 秒内，然后主动转回运控：「这些经验让我在做平衡车时第一天就把两核边界和安全闸门定下来，而不是先写控制律。」</p>
+</section>
+
+<section id="demo">
+<h2>8. 小 demo 规格（你来做，不写在本仓库）</h2>
+
+<p>目的：让第 6 节每个答案都能指到代码和日志。范围刻意小：<strong>单二进制、纯 C++17、无 ROS、无真机、几百行</strong>。做大就偏离了「架构」考点。</p>
+
+<h3>8.1 组成</h3>
+
+<div class="fig">
+<pre class="ascii">motion_arch_demo/
+  schema.hpp        State / Command / Mode / Fault + SCHEMA_VERSION + crc16
+  transport.hpp     ITransport { send(frame), recv(frame) }
+                    LoopbackTransport（同进程）  可选 UdpTransport
+  plant.hpp         线性化 TWIP 离散模型 + 摔倒判定（复用你的 A,B,K）
+  mcu_side.hpp      扮演 MCU：安全子集 FSM、cmd 超时、限幅斜率、非法 Mode 回退
+  writers.hpp       IWriter { reset(tau0), update(state)->tau }
+                    LqrWriter · PolicyWriter（先用函数冒充 π，可注入 NaN/超时）
+  orchestrator.hpp  完整 FSM（Observe/Balance/PolicyWalk/Fault）+ 仲裁 + 心跳
+  main.cpp          场景脚本：正常→切策略→杀策略→推倒→clearFault→重武装
+  log.csv           每拍：t, mode, writer, tau_req, tau_out, fault, seq</pre>
+  <p class="cap">图 3 · 两个「机器」在一个进程里，靠 ITransport 隔开；换成 UDP 时任何一边代码不改。</p>
+</div>
+
+<h3>8.2 必须满足的行为（验收清单）</h3>
+
+<table>
+  <thead><tr><th>#</th><th>场景</th><th>期望</th><th>对应答案</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>正常站立</td><td>writer = LQR，\(\tau\) 有界，模式 Balance</td><td>基线</td></tr>
+    <tr><td>2</td><td>策略申请 PolicyWalk，但 Balance 未稳</td><td>拒绝，模式不变</td><td>批准权在编排器</td></tr>
+    <tr><td>3</td><td>已稳后申请</td><td>当拍换 writer，\(\tau\) 无阶跃（斜率限内）</td><td>bumpless</td></tr>
+    <tr><td>4</td><td>策略心跳停 &gt; 阈值</td><td>下一拍 writer = LQR，模式 Balance，不进 Fault</td><td>6.2</td></tr>
+    <tr><td>5</td><td>策略输出 NaN / 超幅</td><td>同 4，并记一次软故障计数</td><td>合法性检查</td></tr>
+    <tr><td>6</td><td>编排器整机停发帧</td><td>MCU 侧自己 cmd 超时，\(v^*=0\) 继续闭环</td><td>双层兜底</td></tr>
+    <tr><td>7</td><td>推倒（pitch 超阈值）</td><td>MCU 进 Fault，\(\tau=0\)，锁存；编排器发 PolicyWalk 被拒</td><td>MCU 终裁</td></tr>
+    <tr><td>8</td><td>clearFault 未扶正</td><td>拒绝</td><td>恢复条件</td></tr>
+    <tr><td>9</td><td>clearFault 扶正后</td><td>Observe，仍不出力；再武装才 Balance</td><td>禁止自动弹回</td></tr>
+    <tr><td>10</td><td>两边 <code>SCHEMA_VERSION</code> 不同</td><td>握手失败，拒绝 activate，日志明确</td><td>6.4</td></tr>
+    <tr><td>11</td><td>帧 CRC 错 / seq 倒退</td><td>丢弃，不更新命令；连续丢触发超时</td><td>帧协议</td></tr>
+    <tr><td>12</td><td>Loopback 换 UDP</td><td>只改 main 里一行构造</td><td>6.3</td></tr>
+  </tbody>
+</table>
+
+<h3>8.3 关键接口（只给签名，实现你写）</h3>
+
+<div class="code-block">
+<button class="copy-button" type="button">复制</button>
+<pre><code>// schema.hpp
+constexpr uint16_t SCHEMA_VERSION = 1;
+enum class Mode : uint8_t { Observe, Balance, PolicyWalk, Fault };
+enum Fault : uint8_t { kOk = 0, kFall = 1, kImuLost = 2, kCmdTimeout = 4 };
+
+struct State   { uint32_t seq; uint64_t t_ns; float pitch, pitch_rate, pos, vel;
+                 float tau_out[2]; Mode mode; uint8_t fault; };
+struct Command { uint32_t seq; uint64_t t_ns; Mode mode_req; float v_ref, w_ref;
+                 float tau_req[2]; uint8_t writer_id; };
+struct Frame   { uint16_t version; uint8_t kind; uint8_t len; uint8_t payload[64]; uint16_t crc; };
+
+// writers.hpp
+struct IWriter {
+  virtual void  reset(float tau0) = 0;              // bumpless 起点
+  virtual float update(const State&amp; s) = 0;         // 只产 tau 请求
+  virtual bool  healthy(uint64_t now_ns) const = 0; // 心跳 / NaN / 幅值
+  virtual ~IWriter() = default;
+};
+
+// orchestrator.hpp
+class Orchestrator {
+ public:
+  void tick(uint64_t now_ns);           // 读 State → FSM → 仲裁 → 发 Command
+  bool requestMode(Mode m);             // 外部申请，返回是否批准
+  void clearFault();
+ private:
+  Mode      mode_;
+  IWriter*  active_;                     // 同一拍唯一
+  IWriter*  lqr_;  IWriter* policy_;
+};
+</code></pre>
+</div>
+
+<h3>8.4 明确不要做的</h3>
+
+<ul>
+  <li>不要接真 ONNX / 神经网络。函数冒充 \(\pi\) 足够；考点是仲裁不是精度。</li>
+  <li>不要上 ROS2。若之后想接，把 <code>Orchestrator</code> 包成一个 rclcpp 节点即可；demo 本体保持零依赖便于面试现场编译运行。</li>
+  <li>不要做 GUI。CSV + 一张 matplotlib 图（\(\tau\) 与 writer / mode 随时间）就是全部可视化。</li>
+  <li>不要写多于两个 writer、多于四个模式。</li>
+</ul>
+
+<div class="callout ok">
+  <p class="t">规模控制</p>
+  <p style="margin:0">Schema+CRC 约 80 行，Transport 约 60 行，Plant 约 60 行（直接抄仿真 A、B、K），MCU 侧约 120 行，Orchestrator 约 150 行，main 场景约 80 行。合计 500–600 行。超过 1000 行说明在做别的事。</p>
+</div>
+</section>
+
+<section id="present">
+<h2>9. 三分钟演示脚本</h2>
+
+<ol>
+  <li>（20 s）打开 <code>schema.hpp</code>：「两边同一份，带版本和 CRC。」</li>
+  <li>（30 s）跑默认场景，指日志：writer 列从 <code>lqr</code> → <code>policy</code>，\(\tau\) 连续。「单 writer、bumpless。」</li>
+  <li>（30 s）看 t=6 s 策略心跳停：writer 回 <code>lqr</code>，mode 仍 Balance。「软故障不换模式。」</li>
+  <li>（30 s）t=9 s 推倒：mode Fault，\(\tau=0\)；随后策略申请被拒。「MCU 终裁，禁止自动弹回。」</li>
+  <li>（30 s）改 <code>SCHEMA_VERSION</code> 重编一边：握手拒绝。「接口契约。」</li>
+  <li>（20 s）把 Loopback 换 UDP 一行：行为不变。「分叉只在 Transport。」</li>
+  <li>（20 s）收尾：「真机固件是这套的 MCU 半边，已经跑在 ESP32 上；缺的 PolicyWalk 就是这个 demo 补的。」</li>
+</ol>
+</section>
+
+<section id="quiz">
+<h2>10. 闭卷自测</h2>
+
+<details class="quiz">
+  <summary>Q1 · 用四个词复述 JD 的「架构」，并各举你系统里一个对应物。</summary>
+  <div class="ans"><p>边界：<code>shared_state.h</code>；接口：<code>CommandInput</code> stamp/seq 语义；数据流：200 Hz 快照 + 名义周期；模式切换：<code>armed</code>/硬软故障分级。</p></div>
+</details>
+
+<details class="quiz">
+  <summary>Q2 · 三条越界禁令。</summary>
+  <div class="ans"><p>策略不直写关节；ROS2 不进回路；软故障不改模式。</p></div>
+</details>
+
+<details class="quiz">
+  <summary>Q3 · 策略崩了这一拍谁写、从哪个值起、模式变不变？</summary>
+  <div class="ans"><p>LQR；从上一拍实际 \(\tau\) 按斜率起；模式回 Balance 不进 Fault。</p></div>
+</details>
+
+<details class="quiz">
+  <summary>Q4 · <code>reset_seq</code> 为什么是序号不是布尔？<code>stamp==0</code> 为什么不判超时？</summary>
+  <div class="ans"><p>避免重复消费和竞态；避免上电尚未收到指令就误锁。</p></div>
+</details>
+
+<details class="quiz">
+  <summary>Q5 · Schema 不一致时应该怎样？</summary>
+  <div class="ans"><p>握手校验版本，不一致拒绝 activate；不要「尽力兼容」到一半错解。</p></div>
+</details>
+
+<details class="quiz">
+  <summary>Q6 · 为什么控制律能被回放测试？前提是哪条架构决策？</summary>
+  <div class="ans"><p>控制律不读硬件不写 PWM，通过 <code>WheelSensor/WheelActuator</code> 隔离。</p></div>
+</details>
+
+<details class="quiz">
+  <summary>Q7 · 换 MCU 上位机改什么？换通信层控制环改什么？</summary>
+  <div class="ans"><p>都应为零；后者在你仓库已发生（串口→micro-ROS）。</p></div>
+</details>
+
+<details class="quiz">
+  <summary>Q8 · 你自己最想推翻的决定。</summary>
+  <div class="ans"><p>Mode 裸整数由上位机直接决定；命令与配置混装。</p></div>
+</details>
+</section>
+
+<section id="talk">
+<h2>11. 话术与反问</h2>
+
+<p><strong>被问「讲讲你的架构」（60 s）：</strong></p>
+
+<p>「按频率分三层：上位机任意频率可丢，MCU 200 Hz 硬周期，执行器电流环。两核之间只有两个 POD 快照，通信层从串口换到 micro-ROS 时控制环零改动。控制律只产力矩请求，安全层是执行器前唯一闸门；断链只清速度，摔倒锁存要人工恢复。模式切换是单 writer 仲裁：同一拍只有一个模块写力矩，切换先改模式再改 writer。缺的是把策略当成可超时的 writer 和 Schema 版本化，我用一个小 demo 补了这两块。」</p>
+
+<p><strong>被问缺点：</strong>直接说第 5 节两个「后悔」，再说 demo 里怎么改。</p>
+
+<p><strong>反问面试官（挑两个）：</strong></p>
+
+<ul>
+  <li>「你们 Orin 和实时板之间的 Schema 谁 own？版本不一致时是拒绝启动还是兼容？」</li>
+  <li>「RL 退化回经典控制的判据现在是心跳、幅值还是别的？回退时力矩怎么衔接？」</li>
+  <li>「模式机是两板各一份还是只在上位机？MCU 有没有否决权？」</li>
+  <li>「回归现在靠日志回放、HIL 还是真机跑？」</li>
+</ul>
+
+<p>这些问题本身就在展示你懂哪一层。</p>
+</section>
+
+<section id="dont">
+<h2>12. 不要做的</h2>
+
+<ul>
+  <li>不要在简历写「熟悉设计模式 / UML / 微服务」。</li>
+  <li>不要把 <code>docs/JD_Design.md</code> 那张目标图当成「我做过的」；它是目标，本篇第 1 节才是现状，demo 是从现状到目标的一步。</li>
+  <li>不要把 demo 做成第二个仿真器。</li>
+  <li>不要在面试里先讲 RHP 零点；先讲边界与权限，理论留给追问。</li>
+</ul>
+</section>
+
+<footer class="note">
+  与 <a href="./ros2_motion_stack.html">ROS2 运控向</a>、<a href="./vmc_virtual_model_control.html">VMC 讲义</a>、
+  <a href="./JD_Design.md">JD_Design 目标图</a> 配套。本篇的一页纸对应固件现状（<code>shared_state.h</code>、<code>Safety.h</code>、<code>stage5_main.cpp</code>），演进记录对应 <code>docs/stage*.md</code>。
+</footer>
+</main>
+</div>
+<script>
+(function () {
+  document.querySelectorAll(".code-block").forEach(function (block) {
+    var btn = block.querySelector(".copy-button");
+    var code = block.querySelector("pre code");
+    if (!btn || !code) return;
+    btn.addEventListener("click", function () {
+      var text = code.textContent;
+      var done = function () {
+        btn.textContent = "已复制";
+        setTimeout(function () { btn.textContent = "复制"; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+          fallbackCopy(text, done);
+        });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+  function fallbackCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    done();
+  }
+})();
+</script>
+</body>
+</html>
