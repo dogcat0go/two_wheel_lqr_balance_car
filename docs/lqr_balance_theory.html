@@ -503,7 +503,7 @@ l_M=\frac{\sum m_i h_i}{M}
 一旦需求的 \(f\) 超过上限，轮子打滑：运动学 \(s=r\varphi\) 失效，模型与控制一起崩。猛力矩、光滑地面、轮胎脏都会逼近这个边界。LQR 给出的 \(\tau\) 若经常顶满，不仅是执行器饱和问题，还可能是在挑战摩擦锥。
 </p>
 <p>
-库仑滑动摩擦 \(f=-\mu_k N\,\mathrm{sign}(v_{\mathrm{slip}})\) 是非线性继电器型，线性化模型通常<strong>不包含</strong>它；死区与静摩擦是实车抖振的常见来源，需要补偿或靠反馈硬抗，不要指望 \(\mathbf{Q},R\) 单独消掉。
+库仑滑动摩擦 \(f=-\mu_k N\,\mathrm{sign}(v_{\mathrm{slip}})\) 是非线性继电器型，线性化模型通常<strong>不包含</strong>它；死区与静摩擦是实车抖振的常见来源，需要补偿或靠反馈硬抗，不要指望 \(\mathbf{Q},R\) 单独消掉。辨识侧把滑动段写成 \(cv+F_c\mathrm{sign}(v)\) 时，单档匀速会把两参数黏在一条等值线上，简历里的相关 −0.97 见 <a href="./friction_identifiability.html">摩擦可辨识性</a>。
 </p>
 
 <h3 id="noninertial">1.7 非惯性系：为什么“加速能扶正”</h3>
@@ -1945,7 +1945,7 @@ V = IR + K_b\omega,\qquad
 
 <footer class="note">
   <p>文档路径：<code>docs/lqr_balance_theory.html</code> · 本地用浏览器打开即可（需联网加载 MathJax）。与阶段 5 工程文档配套，不替代实车标定 SOP。</p>
-  <p>配套：<a href="./control_systems_mental_model.html">控制思路</a> · <a href="./lagrange_dynamics_why.html">拉格朗日</a> · <a href="./lqr_study_qa.html">本轮问答归档</a></p>
+  <p>配套：<a href="./control_systems_mental_model.html">控制思路</a> · <a href="./lagrange_dynamics_why.html">拉格朗日</a> · <a href="./lqr_study_qa.html">本轮问答归档</a> · <a href="./friction_identifiability.html">摩擦可辨识性 −0.97</a></p>
 </footer>
 </main>
 </div>

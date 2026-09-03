@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>摩擦两参数相关 −0.97：从皮尔逊到 ρ</title>
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']],
+    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+    tags: 'ams'
+  },
+  options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --paper: #fffcf7;
+    --ink: #1a1f24;
+    --muted: #5a6570;
+    --line: #d8d2c6;
+    --accent: #0b5f6b;
+    --accent-soft: #e6f2f3;
+    --warn: #8a3b12;
+    --warn-bg: #f8eee6;
+    --ok: #1f6b3a;
+    --ok-bg: #e8f4ec;
+    --code-bg: #eef1f3;
+    --shadow: 0 1px 0 rgba(26,31,36,.04), 0 12px 40px rgba(26,31,36,.06);
+    --radius: 10px;
+    --max: 52rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 12% -8%, #e8f4f5 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #f3efe6 0%, transparent 50%),
+      var(--bg);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong",
+      "Libertinus Serif", "Iowan Old Style", Georgia, serif;
+    line-height: 1.75;
+    font-size: 17px;
+  }
+  .wrap {
+    display: grid;
+    grid-template-columns: 250px minmax(0, var(--max));
+    gap: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  nav.toc {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding: 1rem;
+    background: rgba(255,252,247,.85);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(8px);
+    font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  nav.toc h2 {
+    margin: 0 0 .75rem;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  nav.toc a {
+    display: block;
+    color: var(--ink);
+    text-decoration: none;
+    padding: .22rem 0;
+    border-left: 2px solid transparent;
+    padding-left: .55rem;
+  }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .l2 { padding-left: 1.1rem; color: var(--muted); font-size: 12px; }
+  main {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 2.25rem 2rem 3rem;
+  }
+  header.doc-head {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  header.doc-head .eyebrow {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 .5rem;
+  }
+  h1 {
+    font-size: clamp(1.55rem, 3vw, 2.05rem);
+    line-height: 1.25;
+    margin: 0 0 .75rem;
+    font-weight: 700;
+  }
+  .lead { color: var(--muted); margin: 0; font-size: 1.02rem; }
+  h2 {
+    margin: 2.75rem 0 1rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--line);
+    font-size: 1.45rem;
+    color: var(--accent);
+  }
+  h2:first-of-type { border-top: none; }
+  h3 { margin: 1.75rem 0 .65rem; font-size: 1.15rem; }
+  p { margin: .7rem 0; }
+  ul, ol { padding-left: 1.35rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .9em;
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 4px;
+  }
+  .code-block { position: relative; margin: 1rem 0; }
+  .code-block .copy-button {
+    position: absolute;
+    top: .55rem;
+    right: .55rem;
+    z-index: 1;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12px;
+    padding: .22rem .55rem;
+    border: 1px solid #3d4a52;
+    border-radius: 4px;
+    background: #2a343a;
+    color: #d7e2e7;
+    cursor: pointer;
+  }
+  .code-block .copy-button:hover { background: #354248; }
+  pre {
+    background: #1e262b;
+    color: #e8eef1;
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .95rem;
+    margin: 1rem 0 1.25rem;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: .55rem .65rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; font-family: "IBM Plex Mono", monospace; font-size: .9rem; }
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    padding: .85rem 1rem;
+    margin: 1.1rem 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+  .callout.ok { border-left-color: var(--ok); background: var(--ok-bg); }
+  .callout .t {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 650;
+    font-size: .92rem;
+    margin: 0 0 .35rem;
+  }
+  .eq-box {
+    background: #f3f7f8;
+    border: 1px solid #c9dde0;
+    border-radius: 8px;
+    padding: .2rem 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  .fig {
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: #fbfaf7;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: .92rem;
+  }
+  .fig .cap { color: var(--muted); margin-top: .65rem; font-size: .85rem; }
+  .fig svg { display: block; width: 100%; height: auto; max-width: 640px; margin: 0 auto; }
+  .steps {
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+    margin: 1rem 0 1.25rem;
+    padding-left: 1.4rem;
+  }
+  .steps > li { margin: .85rem 0; }
+  .steps .mini {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .88rem;
+    background: #f3f7f8;
+    border: 1px solid #c9dde0;
+    border-radius: 6px;
+    padding: .55rem .75rem;
+    margin: .45rem 0 0;
+    overflow-x: auto;
+  }
+  .ascii {
+    white-space: pre;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    line-height: 1.35;
+    overflow-x: auto;
+    margin: 0;
+  }
+  details.quiz {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .7rem .9rem;
+    margin: .7rem 0;
+    background: #fff;
+    font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+  }
+  details.quiz summary { cursor: pointer; font-weight: 650; color: var(--accent); }
+  details.quiz .ans { margin-top: .55rem; color: var(--muted); }
+  footer.note {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: .9rem;
+    font-family: "IBM Plex Sans", sans-serif;
+  }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav.toc { position: static; max-height: none; }
+    main { padding: 1.5rem 1.1rem 2.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <h2>目录</h2>
+  <a href="#goal">0. −0.97 是什么数</a>
+  <a href="#model">1. 两参数其实只看见一个组合</a>
+  <a href="#pearson">2. 跨会话皮尔逊怎么算</a>
+  <a href="#table">3. 示意表：逐步算到 −0.96</a>
+  <a href="#ols">4. 理论：corr(c, F<sub>c</sub>) = −ρ</a>
+  <a href="#rho">5. 和 ρ、多速度档怎么接</a>
+  <a href="#wrong">6. 不要当成什么</a>
+  <a href="#talk">7. 面试话术</a>
+  <a href="#quiz">8. 闭卷自测</a>
+  <a href="#code">9. 自己用标定表重算</a>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="eyebrow">辨识补课 · 配合简历「可辨识性诊断」</p>
+  <h1>摩擦两参数相关 −0.97：不是测出来的摩擦系数</h1>
+  <p class="lead">
+    −0.97 是多场标定各自拟合出的 <code>(c, F<sub>c</sub>)</code> 之间的皮尔逊相关。速度几乎不变时，最小二乘只能看见
+    <code>c·v + F<sub>c</sub></code> 这一条组合，两个估计量沿等值线对调，相关必然接近 −1。同号匀速时，这个相关理论上就是 −ρ。
+  </p>
+</header>
+
+<section id="goal">
+<h2>0. 先钉死：−0.97 不是模型里的常数</h2>
+
+<p>它不是 Karnopp 公式里的参数，也不是某一场回归的 \(R^2\)。它描述的是：</p>
+
+<p><strong>换一场实验，\(c\) 和 \(F_c\) 会朝相反方向一起变，而且几乎成比例。</strong></p>
+
+<p>和简历另外两个数必须一起讲：</p>
+
+<table>
+  <thead><tr><th>数</th><th>含义</th><th>单独看会误判</th></tr></thead>
+  <tbody>
+    <tr><td>\(c\) 波动 1.7 倍</td><td>只看粘滞系数，场与场差很多</td><td>「传感器太吵 / 再多采点」</td></tr>
+    <tr><td>总摩擦量离散 ~3%</td><td>\(T=c\,\bar v+F_c\) 几乎不变</td><td>会漏掉「拆不开」这件事</td></tr>
+    <tr><td>corr(\(c,F_c\))\(\approx -0.97\)</td><td>差在怎么把 \(T\) 拆给两个参数</td><td>会以为两个参数都没标准</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <p class="t">和仓库日志的关系</p>
+  <p style="margin:0">本仓库没有保存「每一场 \(c,F_c\)」的原始表。下面用与简历同量级的<strong>示意表</strong>把算法走完（相关约 −0.96，\(c\) 比值约 1.64）。面试请用你自己的标定表套第 2、9 节同一套公式；方法对了，数字不必咬死 −0.970000。</p>
+</div>
+</section>
+
+<section id="model">
+<h2>1. 两参数其实只看见一个组合</h2>
+
+<p>平地、扣惯性、过原点：</p>
+
+<div class="eq-box">
+$$
+y = \frac{\tau}{r}-\tilde m\,\dot v
+\approx c\,v + F_c\,\mathrm{sign}(v).
+$$
+</div>
+
+<p>一场实验如果几乎都在同一速度 \(v_0&gt;0\) 上匀速，\(\mathrm{sign}(v)\equiv 1\)，\(\dot v\approx 0\)，于是</p>
+
+<div class="eq-box">
+$$
+y \approx c\,v_0 + F_c = T.
+$$
+</div>
+
+<p>回归只能钉住总和 \(T\)。等值线是</p>
+
+<div class="eq-box">
+$$
+F_c = T - c\,v_0,
+$$
+</div>
+
+<p>斜率 \(-v_0&lt;0\)。噪声或分段不同，只会让 \((c,F_c)\) 在这条线上滑：\(c\) 变大，\(F_c\) 按比例变小。这就是「沿病态方向自由交换」。</p>
+
+<div class="fig">
+<pre class="ascii">F_c
+ ^
+ |   T = c·v0 + Fc  （一条斜向下的线）
+ |  ·
+ |    ·     ← 各场拟合点几乎排在线上
+ |      ·
+ |        ·
+ +------------------&gt; c
+      相关 ≈ −1，T 几乎不动</pre>
+  <p class="cap">图 1 · 负相关来自几何：等值线斜率为负。不是两个参数「碰巧」反着涨。</p>
+</div>
+</section>
+
+<section id="pearson">
+<h2>2. 跨会话皮尔逊：简历上那个 −0.97 的定义</h2>
+
+<p>每一场标定做一次两参数最小二乘，得到一对 \((c_i,\,F_{c,i})\)，\(i=1,\ldots,N\)。然后：</p>
+
+<div class="eq-box">
+$$
+r
+= \frac{\sum_i (c_i-\bar c)(F_{c,i}-\bar F_c)}
+{\sqrt{\sum_i (c_i-\bar c)^2}\;\sqrt{\sum_i (F_{c,i}-\bar F_c)^2}}.
+$$
+</div>
+
+<p>\(r\in[-1,1]\)。\(r=-1\) 表示全部点严格在一条斜向下的直线上。</p>
+
+<p>这是<strong>多场拟合结果之间</strong>的相关，不是一场数据里速度和 \(\mathrm{sign}(v)\) 两列的相关。后者在「全是正速」时，\(\mathrm{sign}(v)\) 是常数，根本没有相关可算——病态表现成 \(X^{\mathrm{T}}X\) 接近奇异，见第 4 节。</p>
+</section>
+
+<section id="table">
+<h2>3. 示意表：逐步算到约 −0.96</h2>
+
+<p>假设六场都在 \(\bar v \approx 0.20\,\mathrm{m/s}\) 匀速（同号）。单位：\(c\) 为 N·s/m，\(F_c\) 为 N，\(T=c\bar v+F_c\)。</p>
+
+<table>
+  <thead>
+    <tr><th>场</th><th>\(c\)</th><th>\(F_c\)</th><th>\(T\)</th><th>\(c-\bar c\)</th><th>\(F_c-\bar F_c\)</th><th>乘积</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td class="num">0.167</td><td class="num">0.104</td><td class="num">0.1374</td><td class="num">+0.0457</td><td class="num">−0.0128</td><td class="num">−0.000586</td></tr>
+    <tr><td>2</td><td class="num">0.116</td><td class="num">0.120</td><td class="num">0.1432</td><td class="num">−0.0053</td><td class="num">+0.0032</td><td class="num">−0.000017</td></tr>
+    <tr><td>3</td><td class="num">0.105</td><td class="num">0.123</td><td class="num">0.1440</td><td class="num">−0.0163</td><td class="num">+0.0062</td><td class="num">−0.000101</td></tr>
+    <tr><td>4</td><td class="num">0.102</td><td class="num">0.124</td><td class="num">0.1444</td><td class="num">−0.0193</td><td class="num">+0.0072</td><td class="num">−0.000139</td></tr>
+    <tr><td>5</td><td class="num">0.127</td><td class="num">0.112</td><td class="num">0.1374</td><td class="num">+0.0057</td><td class="num">−0.0048</td><td class="num">−0.000027</td></tr>
+    <tr><td>6</td><td class="num">0.111</td><td class="num">0.118</td><td class="num">0.1402</td><td class="num">−0.0103</td><td class="num">+0.0012</td><td class="num">−0.000012</td></tr>
+  </tbody>
+</table>
+
+<ol class="steps">
+  <li>
+    <strong>均值</strong>（六场相加再除以 6）
+    <div class="mini">
+      c̄ = (0.167 + 0.116 + 0.105 + 0.102 + 0.127 + 0.111) / 6 = 0.728 / 6 = 0.1213<br>
+      F̄c = (0.104 + 0.120 + 0.123 + 0.124 + 0.112 + 0.118) / 6 = 0.701 / 6 = 0.1168
+    </div>
+  </li>
+  <li>
+    <strong>离差与乘积</strong>已写在表的后三列。第 1 场 \(c\) 最高、\(F_c\) 最低，单场乘积 −0.000586，占分子的大半——相关主要由「沿斜线滑得最远的那一场」贡献。
+  </li>
+  <li>
+    <strong>三个和</strong>（用未四舍五入的离差累加；表中三位小数只是展示）
+    <div class="eq-box">
+$$
+\begin{aligned}
+S_{cF} &= \sum (c-\bar c)(F_c-\bar F_c) = -0.000882,\\
+S_{cc} &= \sum (c-\bar c)^2 = 0.002893,\\
+S_{FF} &= \sum (F_c-\bar F_c)^2 = 0.000289.
+\end{aligned}
+$$
+    </div>
+  </li>
+  <li>
+    <strong>皮尔逊</strong>
+    <div class="eq-box">
+$$
+r
+= \frac{S_{cF}}{\sqrt{S_{cc}\,S_{FF}}}
+= \frac{-0.000882}{\sqrt{0.002893\times 0.000289}}
+= \frac{-0.000882}{0.000915}
+\approx -0.964.
+$$
+    </div>
+  </li>
+</ol>
+
+<p>与简历写的 −0.97 是同一量级。六场、\(T\) 还有约 2% 的散，所以不会精确到 −1。</p>
+
+<div class="fig">
+<svg viewBox="0 0 640 360" role="img" aria-label="六场 (c, Fc) 散点与等值线">
+  <rect x="0" y="0" width="640" height="360" fill="#fbfaf7"/>
+  <line x1="72" y1="312" x2="600" y2="312" stroke="#1a1f24" stroke-width="1.2"/>
+  <line x1="72" y1="312" x2="72" y2="36" stroke="#1a1f24" stroke-width="1.2"/>
+  <g fill="#5a6570" font-family="IBM Plex Sans, sans-serif" font-size="12">
+    <line x1="131" y1="312" x2="131" y2="318" stroke="#1a1f24"/>
+    <text x="131" y="336" text-anchor="middle">0.10</text>
+    <line x1="248" y1="312" x2="248" y2="318" stroke="#1a1f24"/>
+    <text x="248" y="336" text-anchor="middle">0.12</text>
+    <line x1="365" y1="312" x2="365" y2="318" stroke="#1a1f24"/>
+    <text x="365" y="336" text-anchor="middle">0.14</text>
+    <line x1="483" y1="312" x2="483" y2="318" stroke="#1a1f24"/>
+    <text x="483" y="336" text-anchor="middle">0.16</text>
+    <text x="600" y="352" text-anchor="end">c (N·s/m)</text>
+    <line x1="72" y1="245" x2="66" y2="245" stroke="#1a1f24"/>
+    <text x="60" y="249" text-anchor="end">0.11</text>
+    <line x1="72" y1="178" x2="66" y2="178" stroke="#1a1f24"/>
+    <text x="60" y="182" text-anchor="end">0.12</text>
+    <line x1="72" y1="111" x2="66" y2="111" stroke="#1a1f24"/>
+    <text x="60" y="115" text-anchor="end">0.13</text>
+    <text x="18" y="28">Fc (N)</text>
+  </g>
+  <line x1="101" y1="164" x2="571" y2="271" stroke="#0b5f6b" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="318" y="198" fill="#0b5f6b" font-family="IBM Plex Sans, sans-serif" font-size="13">T = 0.141 ≈ c·0.20 + Fc</text>
+  <g fill="#8a3b12">
+    <circle cx="524" cy="285" r="6"/>
+    <circle cx="225" cy="178" r="6"/>
+    <circle cx="160" cy="158" r="6"/>
+    <circle cx="142" cy="151" r="6"/>
+    <circle cx="289" cy="232" r="6"/>
+    <circle cx="195" cy="191" r="6"/>
+  </g>
+  <g fill="#8a3b12" font-family="IBM Plex Sans, sans-serif" font-size="11">
+    <text x="532" y="282">1</text>
+    <text x="233" y="175">2</text>
+    <text x="168" y="155">3</text>
+    <text x="112" y="148">4</text>
+    <text x="297" y="229">5</text>
+    <text x="203" y="188">6</text>
+  </g>
+</svg>
+  <p class="cap">图 2 · 六场拟合点几乎排在同一条斜向下的等值线上。\(c\) 从 0.102 到 0.167（约 1.64 倍），\(T\) 只在 0.137～0.144 之间晃。皮尔逊 \(r\approx-0.964\) 读的就是这条云的倾斜程度。</p>
+</div>
+
+<ul>
+  <li>\(c_{\max}/c_{\min} = 0.167/0.102 \approx 1.64\)，对应「波动约 1.7 倍」；</li>
+  <li>\(T\) 的总体相对标准差 \(\sqrt{\overline{(T-\bar T)^2}}/\bar T \approx 2.1\%\)，对应「总量离散约 2～3%」。</li>
+</ul>
+
+<p>\(c\) 看起来很飘，\(T\) 几乎钉死，相关接近 −1：三个数说的是同一条斜线。</p>
+<p>若六点严格落在 \(T=0.1411\) 上，\(r=-1\)。表里 \(T\) 还有约 2% 的散，点被稍微掀离直线，所以是 −0.96 而不是 −1。简历写 −0.97，只是同一量级的说法，不必咬死小数位。</p>
+</section>
+
+<section id="ols">
+<h2>4. 理论：同号时 corr(\(\hat c,\hat F_c\)) = −ρ</h2>
+
+<p>一场数据全为正速度时，模型就是带截距的直线：</p>
+
+<div class="eq-box">
+$$
+y = F_c + c\,v.
+$$
+</div>
+
+<p>\(F_c\) 是截距，\(c\) 是斜率。一元回归里截距与斜率估计量的相关有标准结果：</p>
+
+<div class="eq-box">
+$$
+\mathrm{corr}(\hat F_c,\,\hat c)
+= -\frac{\bar v}{\mathrm{rms}(v)}
+= -\rho,
+\qquad
+\rho=\frac{\mathrm{mean}|v|}{\mathrm{rms}(v)},
+\quad (v>0\text{ 时 }|v|=v).
+$$
+</div>
+
+<p>推导只需协方差公式 \(\mathrm{Cov}(\hat a,\hat b)=-\sigma^2 \bar x/S_{xx}\)，再除以两个标准差。分母里 \(\sqrt{\bar v^2 + \mathrm{Var}(v)}=\mathrm{rms}(v)\)。</p>
+
+<p>于是：</p>
+
+<ul>
+  <li>速度几乎恒定：\(\rho\to 1\)，\(\mathrm{corr}\to -1\)（简历的 −0.97 就是「几乎恒定」）；</li>
+  <li>两档等长、例如 \(0.10\) 与 \(0.30\)：\(\rho\approx 0.894\)，估计量相关约 \(-0.89\)，开始分得开。</li>
+</ul>
+
+<div class="callout ok">
+  <p class="t">为什么简历里的 ρ 和 −0.97 是同一件事</p>
+  <p style="margin:0">ρ 量的是「速度有没有变化」；−ρ 量的是「在这种速度设计下，\(c\) 和 \(F_c\) 估计会有多对调」。单档匀速 ρ≈1，相关必然≈−1。多速度档是在把 ρ 压下去，从而把相关从 −1 拉开。</p>
+</div>
+
+<p>这里有两个相关，面试时分开说：</p>
+<ul>
+  <li><strong>一场内部</strong>：OLS 估计量的抽样相关 \(\mathrm{corr}(\hat c,\hat F_c)=-\rho\)。速度几乎恒定则 \(\rho\to 1\)，这一场的两个估计就沿等值线对调。</li>
+  <li><strong>多场之间</strong>：简历上的 −0.97。每场抽到等值线上的不同点，把这些点拿来算皮尔逊，得到的是同一条斜线的样本版。</li>
+</ul>
+<p>求和对象不同，几何相同。第 3 节的 \(r\approx-0.96\) 是后者；它比 −1 稍弱，是因为各场的 \(T\) 并不完全相等。</p>
+</section>
+
+<section id="rho">
+<h2>5. 和采集协议怎么接</h2>
+
+<p>只加采样点、不改速度档：\(n\) 变大，\(T\) 估得更准，但等值线方向不变，\(c\) 与 \(F_c\) 仍然对调。这就是「问题在协议不是数据量」。</p>
+
+<p>可执行规则：让 \(\rho\) 明显小于 1。同号两档等长时</p>
+
+<div class="eq-box">
+$$
+\rho=\frac{v_1+v_2}{\sqrt{2(v_1^2+v_2^2)}}.
+$$
+</div>
+
+<p>\(v_2=3v_1\) 则 \(\rho\approx 0.89\)；再加零速附近的库仑主导段（小心死区）和更高一档，相关还会再降。协议验收看两件事：ρ 是否够小，以及改协议后跨会话的 \(r\) 是否从 −0.97 降到例如 −0.7 以下、同时 \(c\) 的场间比值不再到 1.7。</p>
+</section>
+
+<section id="wrong">
+<h2>6. 不要当成什么</h2>
+
+<table>
+  <thead><tr><th>误读</th><th>更正</th></tr></thead>
+  <tbody>
+    <tr><td>−0.97 是摩擦系数</td><td>是估计量之间的相关</td></tr>
+    <tr><td>负相关说明模型反了</td><td>等值线斜率就是负的，符号是对的</td></tr>
+    <tr><td>用 \(X\) 的条件数当可辨识性</td><td>条件数吃量纲（\(v\) 用 m/s 还是 mm/s 会变）；ρ 无量纲</td></tr>
+    <tr><td>Karnopp 门控死区</td><td>那是执行层；本数来自滑动模型 \(cv+F_c\mathrm{sign}(v)\) 的辨识</td></tr>
+    <tr><td>一场数据里 corr(\(v,\mathrm{sign}(v)\))</td><td>全正速时 \(\mathrm{sign}(v)\) 是常数，那个相关无定义</td></tr>
+  </tbody>
+</table>
+</section>
+
+<section id="talk">
+<h2>7. 面试怎么讲（40 秒）</h2>
+
+<p>「我拟合的是 \(y=c v+F_c\mathrm{sign}(v)\)。单档匀速时只能看见总和 \(T=cv+F_c\)，所以多场标定里 \(c\) 能差一倍多，但 \(T\) 只散几个百分点，两参数相关大约 −0.97。这不是噪声，是回归的病态方向。同号时这个相关理论上等于 −ρ，ρ 就是 mean|v|/rms(v)。我后来改成多速度档，是为了把 ρ 压下去，而不是再多录同一档。」</p>
+
+<p>被问「−0.97 原始表」：打开你的场次表，用第 9 节脚本现场算；没有表就说示意量级，把等值线和 −ρ 讲清楚，不要编场次。</p>
+</section>
+
+<section id="quiz">
+<h2>8. 闭卷自测</h2>
+
+<details class="quiz">
+  <summary>Q1 · −0.97 是对谁、用什么公式算的？</summary>
+  <div class="ans">多场拟合得到的列向量 \((c_i)\) 与 \((F_{c,i})\) 的皮尔逊相关。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q2 · 为什么符号必须是负的？</summary>
+  <div class="ans">等值线 \(F_c=T-c v_0\)，\(v_0&gt;0\)，斜率为负。\(c\) 变大只能靠 \(F_c\) 变小才能保持 \(T\)。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q3 · 同号匀速时，这个相关和 ρ 什么关系？</summary>
+  <div class="ans">一元回归截距–斜率相关等于 \(-\bar v/\mathrm{rms}(v)=-\rho\)。ρ→1 则相关→−1。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q4 · 为什么多采同一档速度救不了 \(c\)？</summary>
+  <div class="ans">信息只增加在 \(T\) 这个方向上；零空间（对调方向）还在。要改速度设计。</div>
+</details>
+
+<details class="quiz">
+  <summary>Q5 · 条件数为什么不适合当可辨识性指标？</summary>
+  <div class="ans">随回归量量纲变；ρ 是尺度无关的速度「平坦程度」。</div>
+</details>
+</section>
+
+<section id="code">
+<h2>9. 用自己的场次表重算</h2>
+
+<p>把每场的 \(c,F_c\) 填进列表，跑出 \(r\)、\(c\) 比值和 \(T\) 的相对标准差。</p>
+
+<div class="code-block">
+<button class="copy-button" type="button">复制</button>
+<pre><code>import math
+
+# 每场: (c, Fc, v_bar)  —— 用你的标定结果替换
+sessions = [
+    (0.167, 0.104, 0.20),
+    (0.116, 0.120, 0.20),
+    (0.105, 0.123, 0.20),
+    (0.102, 0.124, 0.20),
+    (0.127, 0.112, 0.20),
+    (0.111, 0.118, 0.20),
+]
+
+cs = [s[0] for s in sessions]
+fs = [s[1] for s in sessions]
+Ts = [c * v + fc for c, fc, v in sessions]
+n = len(cs)
+mx, my = sum(cs) / n, sum(fs) / n
+num = sum((c - mx) * (f - my) for c, f in zip(cs, fs))
+dx = math.sqrt(sum((c - mx) ** 2 for c in cs))
+dy = math.sqrt(sum((f - my) ** 2 for f in fs))
+r = num / (dx * dy)
+mt = sum(Ts) / n
+cv = math.sqrt(sum((t - mt) ** 2 for t in Ts) / n) / mt
+print("r = {:.4f}".format(r))
+print("c_max/c_min = {:.3f}".format(max(cs) / min(cs)))
+print("T relative std = {:.2%}".format(cv))
+print("mean T = {:.4f}".format(mt))
+</code></pre>
+</div>
+</section>
+
+<footer class="note">
+  与简历「摩擦可辨识性诊断」配套。模型是滑动段 \(cv+F_c\mathrm{sign}(v)\)，不是执行层 Karnopp 门控。
+  另见 <a href="./lqr_balance_theory.html">LQR 理论复习</a>、<a href="./architecture_interview_prep.html">架构面试准备</a>、<a href="./vmc_virtual_model_control.html">VMC 讲义</a>。
+</footer>
+</main>
+</div>
+<script>
+(function () {
+  document.querySelectorAll(".code-block").forEach(function (block) {
+    var btn = block.querySelector(".copy-button");
+    var code = block.querySelector("pre code");
+    if (!btn || !code) return;
+    btn.addEventListener("click", function () {
+      var text = code.textContent;
+      var done = function () {
+        btn.textContent = "已复制";
+        setTimeout(function () { btn.textContent = "复制"; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+          fallbackCopy(text, done);
+        });
+      } else {
+        fallbackCopy(text, done);
+      }
+    });
+  });
+  function fallbackCopy(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    done();
+  }
+})();
+</script>
+</body>
+</html>
