@@ -572,24 +572,52 @@ FOC 驱动器 / 轮毂 + 髋膝</pre>
 
 <h3>6.1 死锁标准场景（要能口述）</h3>
 
+<p>双轮足上最像真的写法：编排器 50 Hz 定时器想从 Observe 武装到 Balance，必须先问 MCU 的 <code>/mcu/prearm_check</code>（倾角够不够小，对应你车上发 <code>r</code> 之前的预武装）。服务和定时器若在同一个节点、同一条执行器线程里，定时器里再<strong>同步等</strong>服务返回，就是自己等自己。</p>
+
 <div class="fig">
-<pre class="ascii">SingleThreadedExecutor
-  定时器回调 on_timer()
-      └─ client-&gt;call(clear_fault)   // 同步等响应
-           └─ 需要同一 executor 去跑 service 响应回调
-                └─ 执行器正被 on_timer 占着
-                     →  永久等待</pre>
-  <p class="cap">图 3 · 回调内同步 service = 自己等自己。</p>
+<pre class="ascii">SingleThreadedExecutor（或：多线程但定时器与服务在同一个互斥 CallbackGroup）
+  on_timer()  50 Hz
+      └─ future = prearm_check.call_async()
+      └─ future.result()          // 本回调不返回
+           └─ 需要同一 executor 去跑 on_prearm()
+                └─ 线程 / 互斥组正被 on_timer 占着
+                     →  永远没有 [prearm] 日志，车永远武装不了</pre>
+  <p class="cap">图 3 · 回调内同步等服务 = 自己等自己。看起来像「r 没生效」。</p>
 </div>
+
+<p>可运行脚本（Humble，不改仿真车控制节点）：</p>
+
+<div class="code-block">
+<button class="copy-button" type="button">复制</button>
+<pre><code>source /opt/ros/humble/setup.bash
+cd docs/demos/executor_deadlock
+
+# 1) 死锁：日志停在「同步等待」，没有 [prearm]。Ctrl-C 退出。
+python3 arming_executor_demo.py --mode deadlock
+
+# 2) 多线程也不够：定时器和服务挤在同一个互斥组，仍然死锁。
+python3 arming_executor_demo.py --mode exclusive
+
+# 3) 能通但不进真环：两个互斥组 + 多线程，定时器里仍阻塞整拍。
+python3 arming_executor_demo.py --mode split
+
+# 4) 正确：定时器只发请求、下拍看结果，控制拍不阻塞。
+python3 arming_executor_demo.py --mode async
+
+# 仿真车 Gazebo 已起、有 /imu/data 时，用真倾角当预武装条件：
+python3 arming_executor_demo.py --mode async --use-imu</code></pre>
+</div>
+
+<p>Gazebo 开着也能跑：demo 是旁路节点，<strong>不会</strong>接管 <code>/wheel_effort_controller/commands</code>，倒立摆该怎么平衡还怎么平衡。你观察的是这个节点自己的日志，不是车倒不倒。死锁时不要等车的反应，看日志停不停即可。</p>
 
 <p>改法（记两条就够）：</p>
 
 <ol>
-  <li>异步 <code>async_send_request</code>，不要在实时回调里阻塞；</li>
-  <li>或者把 service 回调放到另一个回调组 + MultiThreadedExecutor。</li>
+  <li>异步：定时器里 <code>call_async</code> 后立刻返回，下拍看 <code>future.done()</code>；实时路径禁止 <code>future.result()</code> / <code>spin_until_future_complete</code>。</li>
+  <li>拆组：服务放另一个 CallbackGroup + MultiThreadedExecutor。这能避免死锁，但若定时器里仍 <code>result()</code>，这一拍会被服务延迟卡住——<code>split</code> 模式就是故意展示「能通 ≠ 能进 200 Hz」。</li>
 </ol>
 
-<p>你在 ESP32 上用双核 + 共享内存快照，就是在硬件上做了「通信回调不准进控制核」。rclcpp 里对应：控制定时器一个组，服务/订阅另一个组，跨组只拷 POD。</p>
+<p>你在 ESP32 上用双核 + 共享内存快照，就是在硬件上做了「通信回调不准进控制核」。rclcpp / rclpy 里对应：控制定时器一个组，服务/订阅另一个组，跨组只拷 POD；控制组里<strong>永远不阻塞</strong>。</p>
 </section>
 
 <section id="life">
