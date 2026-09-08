@@ -1,0 +1,432 @@
+---
+title: ROS 2 Runtime 与性能工程实验台
+level: 1
+order: 10
+sections: true
+---
+
+# ROS 2 Runtime 与性能工程实验台
+
+> **面向岗位：** runtime 架构 / 通信中间件 / 设备驱动 / 数据同步与日志系统；基于 ROS 2 的低延迟通信与调度；CPU·内存·IO 优化；内核态与用户态 crash 定位。工具面：perf、ftrace、valgrind；加分：eBPF、PREEMPT_RT。
+>
+> **手上资源：** 2D 激光雷达（USB/串口）、二轮差速底盘、ESP32 固件（本仓库）、一台 Linux 上位机、一台可随便崩的虚拟机。
+
+这套实验的目的不是"学会 ROS 2"，而是**制造出岗位描述里那些问题，然后用工具把它抓住**。面试官问的从来不是"你知道 perf 吗"，而是"你上次用 perf 定位了什么"。所以每个实验的产出物是一组前后对比数字，不是一段能跑的代码。
+
+---
+
+## 0. 三条纪律
+
+1. **先基线，后注入。** 没有"改之前 p99 = X、改之后 p99 = Y"的实验等于没做。
+2. **先可重复，后真实。** 在仿真或 rosbag 回放里确认现象与定位手段成立（不摔车、可无限次重跑），再上实车验证。实车才有真驱动、真 USB、真中断。
+3. **一个实验一页纸。** 现象 → 假设 → 用什么工具看到了什么 → 改了什么 → 数字变化。这一页纸就是面试时的回答。
+
+### 0.1 岗位描述 → 实验映射
+
+| JD 条目 | 实验 |
+| --- | --- |
+| 通信中间件 | A1 QoS 不兼容 · A2 大消息分片丢包 · A3 零拷贝三档对比 · A4 发现风暴 · A5 网络劣化尾延迟 |
+| runtime 架构 / 低延迟调度 | B1 executor 队头阻塞 · B2 回调组切分 · B3 实时优先级与核隔离 · B4 缺页抖动 · B5 PREEMPT_RT 对比 |
+| 设备驱动 | C1 串口延迟与 syscall 放大 · C2 USB 掉线重连 · C3 驱动线程模型 |
+| 数据同步与日志系统 | D1 多源时间戳对齐（含 ESP32 时钟） · D2 rosbag 记录引发 IO 抖动 · D3 日志写阻塞控制环 |
+| CPU/内存/IO 优化 | A3 · B3 · B4 · D2 · E3 |
+| 用户态 crash | E1 core dump 全流程 · E2 valgrind 与 sanitizer 分工 |
+| 内核态 crash | E4 oops/panic 与 kdump 演练 |
+| perf / ftrace / valgrind | 贯穿；主战场分别是 A3·B3、B1·B3、E2 |
+| eBPF（加分） | F1 调度延迟 · F2 块层延迟 · F3 丢包点 · F4 自写探针 |
+| PREEMPT_RT（加分） | B5 |
+
+---
+
+## 1. 台架与统一标尺
+
+### 1.1 四档环境
+
+| 档 | 组成 | 用来做什么 | 注意 |
+| --- | --- | --- | --- |
+| **S** 全仿真 | Gazebo（diff_drive + gpu_lidar）或纯 rosbag 回放 | 可重复注入故障，随便崩 | 仿真时钟会掩盖真实抖动，别用它测延迟绝对值 |
+| **H** 半实物 | 真雷达 + 上位机，底盘架空不落地 | 真驱动、真 USB、真 DDS，但不会摔车 | 驱动类实验（C 组）全在这一档 |
+| **R** 实车 | 雷达 + 底盘 + ESP32 闭环 | 真时序、真闭环耦合 | 只做已经在 S/H 验证过的实验 |
+| **V** 虚拟机 | KVM/QEMU + 可安装 kdump 的内核 | 内核 panic、kdump、崩内核的驱动实验 | E4 必须在这一档，不要在主力机上做 |
+
+### 1.2 统一标尺：一条链路，六个打点
+
+所有实验共用同一根尺子，否则实验之间无法横向比较。
+
+```
+T0  雷达硬件出帧（驱动 read() 返回时刻，最接近的可观测点）
+T1  驱动完成解包，构造出 LaserScan
+T2  publisher 调用 publish() 返回
+T3  下游订阅回调被唤醒并进入
+T4  控制节点算完，cmd_vel publish()
+T5  ESP32 收到该指令（回传序号 + 本地 micros()）
+```
+
+派生指标（每个实验都记这几个）：
+
+| 指标 | 定义 | 说明 |
+| --- | --- | --- |
+| 端到端延迟 | `T5 - T0` | 用户能感知的那个数 |
+| 中间件延迟 | `T3 - T2` | DDS 这一段花了多少，A 组主指标 |
+| 排队延迟 | `T3` 减去消息可用时刻 | executor 有没有被堵，B 组主指标 |
+| 驱动延迟 | `T1 - T0` | C 组主指标 |
+| 周期抖动 | 控制定时器实际间隔的分布 | 记直方图，不记平均值 |
+| 丢帧率 | 序号缺口 / 总帧数 | 区分"慢"和"丢"，两者根因完全不同 |
+
+**统计口径固定为 p50 / p99 / max。** 只报平均值是新手标志——实时系统里所有事故都发生在尾部。样本量至少 1 万帧或 10 分钟，取大者。
+
+两种取数方式都要会，面试常问区别：
+
+- **侵入式**：消息里带 `seq` + 各段时间戳（走一个独立的 `/diag/latency` 话题，别污染业务消息）。优点是精确到自己想要的点，缺点是改了被测系统。
+- **非侵入式**：`ros2_tracing`（LTTng）。`ros2 trace start s1` 采集，`tracetools_analysis` 出回调时长与发布订阅链路。优点是不改代码、能看到 executor 内部，缺点是要装 LTTng 且有采集开销。
+
+### 1.3 一次装齐的工具
+
+```bash
+sudo apt install -y \
+  linux-tools-common linux-tools-$(uname -r) \   # perf
+  trace-cmd kernelshark \                        # ftrace 前端
+  valgrind kcachegrind heaptrack \               # 内存 / 调用图
+  bpfcc-tools bpftrace linux-headers-$(uname -r) \  # eBPF
+  rt-tests stress-ng fio iproute2 sysstat \      # cyclictest / 负载 / IO / tc / iostat
+  gdb systemd-coredump linux-image-$(uname -r)-dbgsym  # crash 定位
+sudo apt install -y ros-$ROS_DISTRO-ros2trace ros-$ROS_DISTRO-tracetools-analysis
+```
+
+`perf` 需要放宽权限才能采内核栈：
+
+```bash
+sudo sysctl -w kernel.perf_event_paranoid=-1
+sudo sysctl -w kernel.kptr_restrict=0
+```
+
+### 1.4 让"偶发"变成"可复现"：负载注入器
+
+| 目标 | 手段 |
+| --- | --- |
+| CPU 抢占 | `stress-ng --cpu $(nproc) --cpu-load 80 --timeout 120s` |
+| 内存压力 / 换页 | `stress-ng --vm 4 --vm-bytes 75% --vm-keep` |
+| IO 压力 | `fio --name=bg --rw=randwrite --bs=4k --iodepth=32 --size=4G --numjobs=4 --time_based --runtime=120` |
+| 网络劣化 | `sudo tc qdisc add dev <if> root netem delay 20ms 10ms distribution normal loss 1% reorder 2%` |
+| 资源配额 | `systemd-run --scope -p CPUQuota=40% -p MemoryMax=512M -p IOWeight=10 <cmd>` |
+| 缓存污染 | `stress-ng --cache 4 --cache-level 3` |
+
+**跑基线前必须锁频，否则前后两组数字不可比：**
+
+```bash
+sudo cpupower frequency-set -g performance
+sudo cpupower idle-set -D 0        # 禁用深 C-state，去掉唤醒延迟的随机性
+```
+
+这一条在面试里单独拿出来讲都是加分项——很多人测出来的"优化收益"其实是频率漂移。
+
+---
+
+## 2. A 组：通信中间件与 DDS
+
+### A1 QoS 不兼容：订阅者一帧都收不到
+
+- **现象**：`ros2 topic hz /scan` 有数据，自己的节点回调却一次都不进。
+- **复现**：雷达驱动用 `rclcpp::SensorDataQoS()`（BestEffort + KeepLast(5)），订阅端用默认 QoS（Reliable + KeepLast(10)）。反过来也做一组：发布 Volatile、订阅 TransientLocal。
+- **定位**：`ros2 topic info /scan --verbose` 对比两端 QoS；打开 `RCUTILS_LOGGING_SEVERITY=DEBUG` 看 rmw 的 incompatible QoS 警告；代码里注册 `QOS_EVENT_REQUESTED_QOS_INCOMPATIBLE` 回调，把它变成显式故障而不是静默失效。
+- **修复**：订阅端匹配 `SensorDataQoS`；把 QoS 收敛到一处配置（或用 QoS overrides 参数）而不是散落在各节点。
+- **验收**：注册的 incompatible 事件回调能在 1 秒内打出具体的 policy 名；改后丢帧率 0。
+- **延伸**：把 Deadline 设成 1.5 倍雷达周期、Liveliness 设成 automatic，制造一次"雷达线程卡死但进程还活着"，验证 deadline missed 回调能触发降级。这正是 JD 里"runtime 架构"想听的东西——**故障要能被观测到，而不是靠人看 rviz 发现**。
+
+### A2 大消息分片与 socket 缓冲区：一压就丢
+
+- **现象**：单路 scan 正常；把点云放大到 2 MB/帧、10 Hz 后，接收端周期性整帧丢失，且 CPU 不高。
+- **复现**：发一个 `PointCloud2`（或人为把 scan 拼大），跨机或强制走 UDP（关掉共享内存传输）。
+- **定位**：
+  ```bash
+  nstat -az | grep -i udp          # UdpRcvbufErrors / UdpInErrors 持续增长即为内核收包缓冲溢出
+  ss -unmp | grep -A1 <pid>        # 看实际 rcv buffer 与积压
+  ```
+  一帧 2 MB 会被切成上千个 UDP 分片，**任何一片丢了整帧就废**，这是"CPU 不高但一直丢"的典型特征。
+- **修复**：
+  ```bash
+  sudo sysctl -w net.core.rmem_max=16777216 net.core.rmem_default=16777216
+  sudo sysctl -w net.core.wmem_max=16777216 net.ipv4.udp_mem="102400 873800 16777216"
+  ```
+  再在 DDS 侧把 `listenSocketBufferSize` / `sendSocketBufferSize` 调到同一量级（Fast DDS 用 XML profile，经 `FASTDDS_DEFAULT_PROFILES_FILE` 注入；旧版本环境变量名是 `FASTRTPS_DEFAULT_PROFILES_FILE`）。同机场景直接改用共享内存传输绕开分片。
+- **验收**：`UdpRcvbufErrors` 增量归零；丢帧率从 X% 到 0；顺带记录 CPU 占用变化。
+- **面试点**：能说清"内核 socket buffer"和"DDS 自己的 History/Resource Limits"是两层不同的队列，各自溢出的表现不一样。
+
+### A3 同机零拷贝三档对比（CPU 优化主实验）
+
+同一份雷达数据，三种部署跑同一段回放，测中间件延迟与 CPU：
+
+| 档 | 做法 | 预期 |
+| --- | --- | --- |
+| 1 独立进程 | 驱动、处理、控制各一个进程，走网络回环 | 序列化 + 内核态往返，基线 |
+| 2 同进程 + 共享内存传输 | 同上但让 DDS 走 SHM | 省掉内核网络栈，仍有一次序列化 |
+| 3 组件化 + 进程内通信 | `ComposableNodeContainer` + `use_intra_process_comms=true`，且**用 `unique_ptr` 发布** | 真零拷贝，中间件延迟塌到微秒级 |
+
+- **定位方法**：`perf record -F 997 -g -p <pid> -- sleep 30`，再出火焰图。档 1 里能明显看到 CDR 序列化与 `memcpy` 的宽条，档 3 里这些条消失。这是"用 perf 定位并优化 CPU"最好讲的一个故事。
+- **坑（一定要踩一次）**：进程内通信只在用 `std::unique_ptr` 发布、且发布订阅在同一个容器进程内时才零拷贝；用 `const &` 发布会退化成拷贝。DDS 的 data-sharing（真正的 loaned message 零拷贝）要求定长的 plain 类型，**`PointCloud2` 这种变长消息不满足**——能讲清这条边界，比会喊"零拷贝"有用得多。
+- **验收**：三档的 `T3 - T2` p99 与进程总 CPU，做成一张三行表。
+
+### A4 发现风暴：节点一多就集体卡顿
+
+- **现象**：节点数从 5 涨到 30，启动阶段网络流量与 CPU 出现周期性尖峰，已有节点的回调延迟被带崩。
+- **复现**：脚本批量拉起 30 个空节点，每个订阅几个话题；同时监测控制环周期抖动。
+- **定位**：`sudo tcpdump -i lo -n port 7400 or portrange 7410-7500` 看多播发现报文的量；`perf top` 看 rmw 线程占比。
+- **修复**：改用 Fast DDS Discovery Server（`fastdds discovery -i 0 -l 127.0.0.1 -p 11811`，客户端设 `ROS_DISCOVERY_SERVER`）把 N×N 变成 N×1；或用 `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` 限定范围（旧版本对应 `ROS_LOCALHOST_ONLY=1`）。
+- **验收**：30 节点全启动耗时、启动期间控制环周期 max、发现流量三项对比。
+
+### A5 网络劣化下的尾延迟
+
+- **复现**：`tc netem` 注入 20 ms ± 10 ms 抖动 + 1% 丢包 + 乱序，跑遥控链路。
+- **观察**：Reliable QoS 在丢包下会重传，**尾延迟被放大而不是丢帧**；BestEffort 则表现为丢帧但延迟稳定。把两者的 p99 与丢帧率画在一起。
+- **结论要能讲出来**：控制指令这种"过期即无用"的数据用 BestEffort + 自带序号超时检测，比用 Reliable 让它排队重传更正确。这条直接呼应本仓库 `Sim2Real_list.md` 里"控制环必须本地闭环、通信只做遥测"的判断。
+
+**本组常见追问：** Reliable 到底可靠在哪一层？History KeepLast 深度和 Reliable 的关系？跨机时 SHM 为什么失效？为什么大点云不能用 data-sharing？
+
+---
+
+## 3. B 组：Executor 与调度（低延迟的核心战场）
+
+### B1 单线程 executor 的队头阻塞
+
+- **现象**：接上雷达之后，200 Hz 控制定时器周期从 5 ms 抖到 40 ms，CPU 却只有 30%。
+- **复现**：在 scan 回调里放一段 30 ms 的处理（或直接 `std::this_thread::sleep_for(30ms)`），同一个节点里挂一个 5 ms 定时器，用默认单线程 executor。
+- **定位**：
+  - 侵入式：定时器里记 `steady_clock` 相邻间隔，出直方图，能看到明显的 40 ms 峰。
+  - 非侵入式：`ros2 trace` 采集后看 `callback_start` / `callback_end`，直接看到定时器回调被排在长回调后面。
+  - 内核视角：`trace-cmd record -e sched_switch -e sched_wakeup -P <tid>`，用 KernelShark 看该线程"被唤醒到真正上 CPU"之间隔了多久——如果唤醒就跑，说明不是被内核抢占，而是**根本没被 executor 唤醒**，问题在用户态排队。这个区分是整组实验里最值钱的一句话。
+- **修复三选一（要能说清各自代价）**：
+  1. `MultiThreadedExecutor` + 把定时器放进独立的 `MutuallyExclusive` 回调组，慢回调放另一个组；
+  2. 长处理挪出回调，丢给工作线程 + 无锁队列，回调只做搬运；
+  3. 直接拆进程，用 A3 的零拷贝把跨进程代价补回来。
+- **验收**：周期抖动 p99 与 max，修复前后各一组直方图。
+
+### B2 回调组切分的正确姿势
+
+在 B1 基础上做一组反例：把所有回调都塞进 `Reentrant` 组并开 8 线程。跑起来会更快，但共享状态开始出现竞态。用 **TSan**（`-fsanitize=thread`）或 valgrind 的 **helgrind/DRD** 把竞态抓出来，然后改回"按数据所有权划分 MutuallyExclusive 组"。
+
+结论：**回调组不是并发开关，是数据竞争的边界声明。** 这句话在面试里比任何性能数字都好用。
+
+### B3 实时优先级、核隔离与中断亲和
+
+- **目标**：在 `stress-ng` 满载 CPU 的情况下，控制环周期 max 仍然可控。
+- **步骤**：
+  1. 基线：满载下测周期抖动（一般 max 会到几十毫秒）。
+  2. 给控制线程 `SCHED_FIFO`：`sudo chrt -f 80 ros2 run ...`（需要在 `/etc/security/limits.conf` 放开 `rtprio`）。注意**只提控制线程**，别把整个进程包括 DDS 线程一起提到高优先级，那会制造新的优先级反转。
+  3. 隔核：内核参数 `isolcpus=2,3 nohz_full=2,3 rcu_nocbs=2,3`，控制线程 `taskset -c 2`。
+  4. 中断亲和：把雷达 USB 控制器的中断从隔离核上赶走，`cat /proc/interrupts` 找到号，`echo <hexmask> > /proc/irq/<N>/smp_affinity`。
+- **定位**：`perf sched record -- sleep 20` 后 `perf sched latency --sort max` 直接给出每个线程的最大调度延迟；ftrace 的 `wakeup_rt` tracer 可以给出实时任务的唤醒延迟上界。
+- **验收**：满载下周期 max 的四个数（基线 / +FIFO / +隔核 / +中断亲和），画成一张递降的表。
+
+### B4 缺页与内存锁定：第一次跑总是慢
+
+- **现象**：启动后前几秒周期抖动很大；或者内存压力一来周期就炸。
+- **定位**：`perf stat -e page-faults,minor-faults,major-faults -p <pid> -- sleep 30`；`/proc/<pid>/status` 看 `VmHWM`。
+- **修复**：`mlockall(MCL_CURRENT|MCL_FUTURE)`；启动时预热堆（预分配后 touch 一遍再释放到 pool）；关掉该进程的 THP；控制路径上禁止 `new`/`malloc`（消息用预分配池）。
+- **验收**：major fault 归零、启动后前 5 秒的周期 max 与稳态一致。
+
+### B5 PREEMPT_RT 前后对比（加分项主实验）
+
+- **基线**：普通内核跑 `sudo cyclictest -m -S -p 90 -i 200 -h 400 -D 10m`，同时用 `stress-ng` + `fio` 满载。记 max 与直方图长尾。
+- **换 RT 内核**：Ubuntu 可用 Pro 提供的 realtime 内核，或自行打 PREEMPT_RT 补丁编译。
+- **复测**：同样负载同样命令，对比 max。典型结果是 max 从毫秒级降到几十微秒级。
+- **再往上一层**：把 B3 的控制环搬到 RT 内核上跑，看端到端 p99 的改善**远小于** cyclictest 的改善——因为瓶颈这时已经在 DDS 和驱动，不在调度。**能说出这个"优化收益转移"的观察，比单纯报 cyclictest 数字有说服力得多。**
+
+**本组常见追问：** SCHED_FIFO 和 SCHED_DEADLINE 怎么选？优先级反转如何避免（PI mutex）？为什么不能给 DDS 线程也设最高优先级？PREEMPT_RT 让什么变成了可抢占的？
+
+---
+
+## 4. C 组：设备驱动
+
+### C1 串口延迟与 syscall 放大（性价比最高的一个实验）
+
+- **现象**：雷达标称 10 Hz，但驱动测出来的 `T1 - T0` 有固定的十几毫秒延迟，且方差小得可疑——固定偏移通常是配置问题，不是负载问题。
+- **两个真凶**：
+  1. **FTDI 的 latency_timer 默认 16 ms**。如果雷达用的是 `ftdi_sio`：
+     ```bash
+     cat /sys/bus/usb-serial/devices/ttyUSB0/latency_timer   # 多半是 16
+     echo 1 | sudo tee /sys/bus/usb-serial/devices/ttyUSB0/latency_timer
+     ```
+     固化成 udev 规则。注意 CP210x 等其他桥接芯片没有这个旋钮，得从 termios 和 URB 那边想办法。
+  2. **termios 的 `VMIN`/`VTIME` 配错**，导致 `read()` 要么攒够字节才返回、要么每次超时等待。
+- **另一条线是 syscall 放大**：很多驱动逐字节 `read()` 找帧头。
+  ```bash
+  strace -c -f -p <pid>                       # 看 read 调用次数占比
+  sudo perf trace -p <pid> -s                 # 同样目的，开销更低
+  ```
+  改成一次读一大块进环形缓冲、在用户态做帧同步，syscall 次数可以掉两个数量级。
+- **验收**：`T1 - T0` 的 p50/p99、每秒 `read()` 次数、驱动线程 CPU，三项前后对比。
+
+### C2 USB 掉线与重连状态机
+
+- **复现**：`sudo usbreset <bus:dev>`，或直接物理拔插，或用 `echo 0 > /sys/bus/usb/devices/<x>/authorized` 模拟。
+- **要暴露的问题**：驱动 `read()` 返回 -1 后是不是死循环刷日志（顺带把 CPU 打满、把磁盘写爆）；`/dev/ttyUSB0` 重新枚举后编号变成 `ttyUSB1` 导致再也连不上；上层节点没收到任何状态变化，静默地拿着 5 分钟前的旧数据继续跑。
+- **修复**：udev 按序列号做固定 symlink；驱动内做带指数退避的重连状态机；对外发布 `/diagnostics`；订阅端加数据年龄检查。
+- **验收**：拔插 20 次全部自动恢复；恢复时间 p99；断连期间 CPU 不升高；上层在 1 个周期内感知到降级。
+- **面试点**：这题考的不是 USB，是**驱动的失效语义**——"没有数据"和"数据很旧"必须是两个可区分的、可上报的状态。
+
+### C3 驱动线程模型对比
+
+同一个雷达，三种读法测 CPU 与延迟：忙轮询 `read()`、阻塞 `read()` 配独立线程、`epoll` 多路复用（雷达 + IMU + 底盘串口一起管）。得出的表能直接回答"你会怎么写一个多设备驱动节点"。
+
+---
+
+## 5. D 组：数据同步与日志系统
+
+### D1 多源时间戳对齐
+
+三个源：雷达 10 Hz（USB）、IMU 200 Hz（ESP32 上报）、轮速里程计 100 Hz。
+
+- **要复现的问题**：
+  1. **时间戳源混用**——一部分代码用 `node->now()`（受 `use_sim_time` 影响的 ROS 时间），一部分用 `steady_clock`，回放时 TF 立刻报 extrapolation。
+  2. **ESP32 与主机时钟不同步**，且晶振有漂移。这是本仓库场景里最真实的一个同步问题。
+  3. `message_filters` 的 `ApproximateTime` 队列太短，高负载下同步成功率暴跌，且失败是静默的。
+- **做法**：ESP32 侧用 NTP 式四时间戳交换（主机发 t1，ESP32 记 t2/t3，主机收 t4）估计 offset，再用线性回归估 skew（ppm 级漂移），把设备时间戳换算到主机时间轴。跑 30 分钟看漂移是否被吃掉。
+- **量化**：同步成功率、配对时间差分布、长时间运行的时钟偏移曲线。
+- **加分做法**：如果有两台上位机，用 `ptp4l` + `phc2sys` 做一次硬件时间戳同步，对比 chrony 的软件同步精度（微秒 vs 毫秒量级）。
+
+### D2 rosbag2 记录引发的 IO 抖动（IO 优化主实验）
+
+- **现象**：一开始录包，控制环周期就出现周期性尖刺，间隔恰好和脏页回写周期吻合。
+- **复现**：`ros2 bag record -a` 全量录制（含点云），同时监测周期抖动；用机械硬盘或 U 盘更容易复现。
+- **定位**：
+  ```bash
+  iostat -x 1                                   # await / %util 尖峰
+  sudo /usr/share/bcc/tools/biolatency -m 1 20  # 块层延迟直方图
+  sudo /usr/share/bcc/tools/biosnoop            # 谁在写、单次多久
+  cat /proc/meminfo | grep -i dirty             # 脏页水位
+  ```
+- **修复选项（逐个测收益）**：录包进程独立 cgroup 限 `IOWeight` + `ionice -c3`；`--max-cache-size` 加大做批量落盘；换 mcap 存储 + zstd 压缩（用 CPU 换 IO）；话题白名单而不是 `-a`；写到独立盘；调 `vm.dirty_background_ratio` 让回写更平滑。
+- **验收**：控制环周期 max、块层延迟 p99、录包丢消息数，三项对照。
+- **面试点**：能指出"日志系统的正确性目标是**不影响被观测系统**"，并给出 cgroup 隔离这个答案。
+
+### D3 日志写阻塞控制环
+
+- **复现**：在控制回调里加一条无节流的 `RCLCPP_INFO`，200 Hz 输出到终端，再把 stdout 重定向到慢速磁盘或一个满的管道。
+- **定位**：`perf trace -e write -p <pid>` 看 `write()` 阻塞时长；或 `bpftrace -e 'tracepoint:syscalls:sys_enter_write /comm=="ctrl_node"/ { @[comm] = count(); }'`。
+- **修复**：`RCLCPP_INFO_THROTTLE`；日志分级并把高频诊断改走独立话题；异步日志（生产者只入队，落盘另起线程）；确认 stdout 行缓冲在重定向后变成全缓冲带来的行为差异。
+- **验收**：控制回调耗时 p99，以及"日志目标变慢时控制环是否还稳定"这个鲁棒性结论。
+
+**本组常见追问：** 为什么不能在实时回调里做任何 IO？异步日志的队列满了怎么办（丢日志还是阻塞业务，怎么选）？
+
+---
+
+## 6. E 组：Crash 与内存定位
+
+### E1 用户态 crash：从崩溃到栈帧的完整流程
+
+- **制造**：在雷达驱动里埋一个越界写（比如帧长字段来自设备但没做上界检查，喂一段构造的坏帧）。**注意这正是真实驱动最常见的漏洞形态**，比 `int *p = nullptr` 有说服力。
+- **流程**：
+  ```bash
+  ulimit -c unlimited
+  cat /proc/sys/kernel/core_pattern           # 确认是 systemd-coredump 还是文件
+  coredumpctl list && coredumpctl gdb <pid>   # 或 gdb <bin> <core>
+  (gdb) bt full ; info registers ; thread apply all bt
+  ```
+- **必须演练的一环**：release 构建（`-O2`）没有符号时怎么办——用 `-g -O2` 编译后 `objcopy --only-keep-debug` 分离出 debuginfo，部署时不带、定位时加载。**这是"能定位线上 crash"和"只能定位本地 crash"的分界线。**
+- **验收**：能从 core 还原出越界发生的具体行、以及那一帧的设备数据。
+
+### E2 valgrind 与 sanitizer 的分工
+
+| 工具 | 抓什么 | 代价 | 什么时候用 |
+| --- | --- | --- | --- |
+| valgrind memcheck | 越界、未初始化读、泄漏 | 20~50× 慢 | 离线回放，**绝不能**在实车实时环上跑 |
+| ASan | 越界、UAF | 约 2× | 日常 CI 与仿真跑 |
+| TSan | 数据竞争 | 5~15× | 专门验 B2 的回调组切分 |
+| UBSan | 未定义行为 | 很小 | 长期挂着 |
+| helgrind / DRD | 锁序、竞态 | 很慢 | 没法上 TSan 时的替补 |
+
+```bash
+ros2 run --prefix 'valgrind --tool=memcheck --leak-check=full --track-origins=yes --log-file=vg.%p.log' <pkg> <node>
+colcon build --cmake-args -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
+```
+
+**要能主动说出的一句话**：valgrind 会让时序完全失真，所以它只能用来验"逻辑正确性"，不能用来验"实时性"；实时路径上的内存问题要靠 ASan + 回放数据集来抓。
+
+### E3 内存增长与泄漏
+
+- **复现**：让节点跑 8 小时，`while true; do ...; done` 反复重连雷达、反复创建订阅。
+- **观察**：RSS 曲线（`pidstat -r -p <pid> 1` 采样后画图）。区分三种情况：真泄漏、glibc 堆碎片（RSS 不降但没泄漏，用 `malloc_trim` 验证）、缓存类正常增长。
+- **工具**：`valgrind --tool=massif` + `ms_print`；`heaptrack` 更适合长跑（开销小、有火焰图）。
+- **验收**：8 小时 RSS 斜率接近 0；如果不是泄漏而是碎片，要能拿出证据证明。
+
+### E4 内核态：oops / panic 与 kdump 演练（在 V 档虚拟机做）
+
+- **准备**：`sudo apt install kdump-tools`，`kdump-config show` 确认 crashkernel 内存已预留、`vmcore` 目录可写。
+- **触发**：`echo c | sudo tee /proc/sysrq-trigger`（受控 panic）。
+- **分析**：
+  ```bash
+  crash /usr/lib/debug/boot/vmlinux-$(uname -r) /var/crash/*/dump.*
+  crash> bt ; ps ; log ; dmesg
+  ```
+- **更接近真实的一版**：写一个几十行的内核模块，在里面解引用空指针制造 oops，然后从 `dmesg` 的 RIP 与调用栈，用 `addr2line`/`faddr2line` 定位到模块源码行。
+- **要能讲清的边界**：oops 与 panic 的区别、`panic_on_oops` 的取舍、为什么生产环境上宁可 panic + kdump 也不要带着损坏状态继续跑。
+
+**本组常见追问：** core dump 在容器里怎么落盘？crash 发生在第三方 .so 里怎么办？内存越界为什么有时崩在完全无关的地方？
+
+---
+
+## 7. F 组：eBPF（加分项，投入产出比很高）
+
+eBPF 的卖点是**不改代码、不重启、开销小**地看进生产系统。四个实验直接对应前面几组的定位难点。
+
+### F1 "控制线程为什么没跑"
+
+```bash
+sudo /usr/share/bcc/tools/runqlat -p <pid> 10 1     # 调度延迟直方图：等 CPU 等了多久
+sudo /usr/share/bcc/tools/offcputime -p <pid> -f 30 > off.stacks   # 不在 CPU 上时卡在哪个栈
+```
+
+`runqlat` 长尾说明是**被抢占/CPU 不够**（去 B3 加优先级、隔核）；`offcputime` 显示卡在锁或 `read()` 说明是**自己在等**（去 B1 拆回调、去 C1 修驱动）。**这两个图能把"卡顿"一刀切成两类根因，是这组最值得讲的价值。**
+
+### F2 块层延迟归因（配合 D2）
+
+```bash
+sudo /usr/share/bcc/tools/biolatency -m 5 1
+sudo /usr/share/bcc/tools/biosnoop | grep -i bag
+```
+
+### F3 丢包丢在哪一层（配合 A2）
+
+```bash
+sudo bpftrace -e 'tracepoint:skb:kfree_skb { @[kstack] = count(); }'
+```
+
+较新内核的 `kfree_skb` 带 `reason` 字段（如 `SKB_DROP_REASON_SOCKET_RCVBUFF`），能一步定位到"就是收缓冲满了"，与 A2 的 `nstat` 结论互相印证。
+
+### F4 自写探针
+
+用 `bpftrace` 写一个统计某进程 `write()` 按 fd 分布的单行，验证 D3 的日志放大；再写一个 uprobe 挂到驱动的解包函数上测函数级延迟分布（`funclatency`）。能现场写出一条 bpftrace 单行，比说"了解 eBPF"强太多。
+
+---
+
+## 8. 时间不够时的取舍
+
+如果只能做五个，做这五个——它们覆盖 JD 的全部主干，且每个都能讲成完整故事：
+
+| 优先级 | 实验 | 覆盖的 JD 条目 |
+| --- | --- | --- |
+| 1 | **B1** executor 队头阻塞 | runtime 架构、调度、ftrace、ros2_tracing |
+| 2 | **A3** 零拷贝三档对比 | 通信中间件、CPU 优化、perf 火焰图 |
+| 3 | **C1** 串口延迟与 syscall 放大 | 设备驱动、低延迟、strace/perf trace |
+| 4 | **D2** rosbag 引发 IO 抖动 | 日志系统、IO 优化、eBPF biolatency |
+| 5 | **E1** core dump 全流程 | 用户态 crash 定位、符号化 |
+
+补两个加分项：**B5**（cyclictest 前后对比，一晚上能出数）和 **F1**（两条命令出两张图）。
+
+E4 内核 crash 投入最大、和日常工作距离最远，放最后；但**至少要把流程走通一次**，这样被问到时能说"我搭过 kdump，用 crash 看过 vmcore"，而不是背概念。
+
+---
+
+## 9. 一页纸模板（每个实验做完就填）
+
+```
+【现象】   什么条件下、什么指标、坏到什么程度（带数字）
+【假设】   当时怀疑的 2~3 个方向，以及为什么先查这个
+【定位】   用了什么工具、看到了什么关键证据（贴图或贴那几行输出）
+           —— 关键是要能说清「这个证据如何排除了另外两个假设」
+【修复】   改了什么，为什么这么改，代价是什么
+【数据】   前 / 后：p50、p99、max、丢帧率、CPU、内存
+【边界】   这个修复在什么情况下会失效
+```
+
+最后一栏最容易被忽略，但**面试官最爱追问的就是它**。能主动说出"这个优化在跨机场景下不成立"或"这个参数在低端 CPU 上要重新标"，说明你是在做工程，不是在抄配置。
