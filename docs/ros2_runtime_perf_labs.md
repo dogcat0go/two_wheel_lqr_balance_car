@@ -100,10 +100,11 @@ sections: true
    vcgencmd measure_temp && vcgencmd get_throttled   # 期望 throttled=0x0
    ```
    `get_throttled` 非 0 的那一轮数据直接作废。这条纪律本身在面试里就能讲——**测量环境不受控，优化结论就不成立**。
-2. **发行版决定 eBPF 能不能用。** F 组的 bcc/bpftrace 走 CO-RE，需要内核带 `CONFIG_DEBUG_INFO_BTF`。Raspberry Pi OS 的下游内核长期不带，装上工具也跑不起来。**装 Ubuntu Server 24.04 arm64**，它的 arm64 内核默认开 BTF，`perf` 也有现成包。先验一句：
+2. **发行版决定 eBPF 能不能用，而它和 ROS 版本互相打架。** F 组的 bcc/bpftrace 走 CO-RE，需要内核带 `CONFIG_DEBUG_INFO_BTF`。树莓派专用内核长期不带这个选项（Launchpad #2065829），**Ubuntu 的 `linux-raspi` 直到 24.04 的 6.8.0-1009 才补上**；22.04 的 5.15 raspi 内核没有，Raspberry Pi OS 的下游内核也没有。上手先验一句：
    ```bash
    ls /sys/kernel/btf/vmlinux && echo "BTF OK"
    ```
+   冲突在于：ROS 2 Humble 的 Tier 1 平台是 Ubuntu **22.04** arm64，而带 BTF 的内核在 **24.04**。解法是**宿主装 24.04、Humble 跑在容器里**——内核侧的可观测性不受容器影响，perf / ftrace / bpftrace 按 PID 观察进程，不关心它在哪个命名空间。容器按 `--net=host --ipc=host --pid=host` 起，再把雷达设备透进去；这三个参数加上之后容器基本只剩文件系统隔离，不会污染延迟测量。**`--ipc=host` 尤其不能少**，否则 Fast DDS 的共享内存传输用不了，A3 的零拷贝实验会直接失真——这个坑本身就是很好的面试素材。
 3. **ARM 上的 perf 有两处不一样。** 硬件 PMU 事件（cycles、cache-misses）在部分内核配置下不可用，`perf stat` 会报 `<not supported>`——退回软件事件 `-e cpu-clock` 仍能采样出火焰图。另外 ARM64 常省略帧指针，调用栈会断，编译时加 `-fno-omit-frame-pointer`，或采样时用 `--call-graph dwarf`。
 4. **别把系统盘和"故意做慢的盘"搞混。** 系统从 USB SSD 启动（快、不磨损），**把 SD 卡单独留给 D2 当录包目标**。这样"慢 IO"是一个你能开关的自变量，而不是拖慢一切的背景噪声。
 
