@@ -118,7 +118,7 @@ sections: true
 
 顺带：`ssh -X` 转发 RViz 能用但很卡，别指望它；偶尔要图形界面时装 VNC 按需起，比常驻桌面干净。
 
-#### 装哪个版本：24.04 Server + Humble 跑容器
+#### 装哪个版本：24.04 Server + Jazzy 原生
 
 这里有个绕不开的三方冲突，**两个加分项都落在 24.04 那一边**：
 
@@ -128,7 +128,18 @@ sections: true
 | BTF / eBPF CO-RE（F 组） | **24.04**（`linux-raspi` 6.8.0-1009 起才带 `CONFIG_DEBUG_INFO_BTF`） |
 | PREEMPT_RT 树莓派变体（B5） | **24.04**。Canonical 的实时内核变体列表里，22.04 只有 `generic` 和 `intel-iotg`，**树莓派变体是 24.04 才加的**；22.04 上要做 B5 只能自己给 5.15 raspi 内核打 RT 补丁重编，那就不是"一晚上能出数"了 |
 
-所以结论是 **24.04 Server（arm64+raspi 预装镜像）+ Humble 跑在 Docker 里**，容器参数见下面坑 2。RT 内核一条命令就能装：
+**「24.04 + Humble」不存在原生形态。** `packages.ros.org` 没有 noble 对应的 humble 包（apt 源按发行代号分目录，noble 下只有 Jazzy 之后的）；源码编译则会撞上 Noble 的 Python 3.12——Humble 期的大量 `ament_python` 包依赖 3.12 已移除的 `distutils`。在 Pi 上编好几个小时再失败，概率不低。**所以选 Humble 就等于选容器。**
+
+而换 Jazzy 的成本，对**本仓库**来说几乎是零：
+
+| 要改什么 | 工作量 |
+| --- | --- |
+| 自己的 ROS 2 包 | **没有**。本仓库是纯 PlatformIO 固件，一个 `package.xml` 都没有 |
+| `tools/fishbot_wifi_bridge.py` | 唯一用 rclpy 的文件，只用到 `init` / `Node` / `QoSProfile` / `spin` / `shutdown`，这几个从 Humble 到 Jazzy 没变。实际只有报错信息里那句 `/opt/ros/humble/setup.bash` 要改 |
+| 固件 micro-ROS | `platformio.ini` 里 `board_microros_distro = humble` 改一行 |
+| slam_toolbox / nav2 / robot_localization / micro_ros_agent | Jazzy 都有 arm64 二进制包 |
+
+**结论：Ubuntu 24.04 Server（arm64+raspi 预装镜像）+ Jazzy 原生。** 全原生等于绕开容器的三个坑：漏掉 `--ipc=host` 会让 A3 零拷贝的数据**静默失真**（这是最危险的一个，因为它不报错）、设备透传、以及 cgroup v2 对 rtprio 的限制。RT 内核一条命令：
 
 ```bash
 sudo pro attach                                  # 个人用途 5 台以内免费
@@ -136,9 +147,11 @@ sudo pro enable realtime-kernel --variant=raspi  # 千万别漏 --variant，装�
 uname -rv                                        # 期望看到 ...-raspi-realtime ... PREEMPT_RT
 ```
 
-有一个容器化的顾虑要提前说清：**在容器里给线程提实时优先级会撞上 cgroup v2 的 rt 带宽限制**，需要 `--cap-add=sys_nice --ulimit rtprio=99`，有时还要额外调。但 **B5 本身不受影响——`cyclictest` 不是 ROS 程序，直接在宿主上跑**，RT 内核前后对比完全绕开容器。只有当你想让 ROS 节点自己跑 SCHED_FIFO（B3 的一部分）时才会碰到这个问题。
+**动手装系统之前先验证一件事：** micro_ros_platformio 的 jazzy 能不能编过。`platformio.ini` 里已经留着前车之鉴——注释写明默认的 kilted 会因 `rmw_test_fixture` 缺 rmw 而编译失败，所以才钉死 humble。jazzy 未必没有同类问题。改一行跑一次 `pio run` 就知道，代价极小，但它决定整个方案成不成立。
 
-如果你不打算碰 eBPF **也**不打算碰 PREEMPT_RT，那就装 22.04 Server 原生跑 Humble，最省事。但这等于放弃 JD 里两个加分项，不建议。
+万一 jazzy 编不过，退路按代价从小到大：只把 micro_ros_agent 单独放进 Humble 容器、其余 Jazzy 原生（但要注意 Iron 之后引入的类型哈希，Humble 侧不带哈希，与 Jazzy 节点匹配可能出问题）；再不行就退回 22.04 + Humble 全原生，放弃两个加分项。
+
+**不要往更新的版本跳。** 26.04 + Lyrical 虽然也有 raspi 实时内核变体，但发布没多久，nav2 / slam_toolbox / micro-ROS 的生态成熟度是未知数——时间会花在让工具跑起来上，这正是本节反对上 Jetson 的同一条理由。何况面试对口的是 Humble 和 Jazzy。另一个值得知道的时间点：**Humble 的支持到 2027 年 5 月截止**，Jazzy 到 2029 年 5 月。
 
 #### 树莓派的四个坑（不先处理，测出来的数全是噪声）
 
@@ -151,7 +164,9 @@ uname -rv                                        # 期望看到 ...-raspi-realti
    ```bash
    ls /sys/kernel/btf/vmlinux && echo "BTF OK"
    ```
-   冲突在于：ROS 2 Humble 的 Tier 1 平台是 Ubuntu **22.04** arm64，而带 BTF 的内核在 **24.04**。解法是**宿主装 24.04、Humble 跑在容器里**——内核侧的可观测性不受容器影响，perf / ftrace / bpftrace 按 PID 观察进程，不关心它在哪个命名空间。容器按 `--net=host --ipc=host --pid=host` 起，再把雷达设备透进去；这三个参数加上之后容器基本只剩文件系统隔离，不会污染延迟测量。**`--ipc=host` 尤其不能少**，否则 Fast DDS 的共享内存传输用不了，A3 的零拷贝实验会直接失真——这个坑本身就是很好的面试素材。
+   冲突在于：ROS 2 Humble 的 Tier 1 平台是 Ubuntu **22.04** arm64，而带 BTF 的内核在 **24.04**。按上一节的结论走 **24.04 + Jazzy 原生**，这个冲突自然消失。
+
+   只有在退回容器方案时才需要下面这段（留着因为它本身是好素材）：内核侧的可观测性不受容器影响，perf / ftrace / bpftrace 按 PID 观察进程，不关心它在哪个命名空间。容器按 `--net=host --ipc=host --pid=host` 起，再把雷达设备透进去；这三个参数加上之后基本只剩文件系统隔离，不会污染延迟测量。**`--ipc=host` 尤其不能少**，否则 Fast DDS 的共享内存传输用不了，A3 的零拷贝实验会直接失真，而且**不报错**——面试里能讲清这一条很加分。另外容器里给线程提实时优先级会撞上 cgroup v2 的 rt 带宽限制，要 `--cap-add=sys_nice --ulimit rtprio=99`；但 B5 不受影响，`cyclictest` 不是 ROS 程序，直接在宿主上跑。
 3. **ARM 上的 perf 有两处不一样。** 硬件 PMU 事件（cycles、cache-misses）在部分内核配置下不可用，`perf stat` 会报 `<not supported>`——退回软件事件 `-e cpu-clock` 仍能采样出火焰图。另外 ARM64 常省略帧指针，调用栈会断，编译时加 `-fno-omit-frame-pointer`，或采样时用 `--call-graph dwarf`。
 4. **别把系统盘和"故意做慢的盘"搞混。** 系统从 USB SSD 启动（快、不磨损），**把 SD 卡单独留给 D2 当录包目标**。这样"慢 IO"是一个你能开关的自变量，而不是拖慢一切的背景噪声。
 
